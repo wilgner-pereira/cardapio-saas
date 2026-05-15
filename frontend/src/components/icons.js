@@ -1,0 +1,16 @@
+export { default as Beef } from "lucide-react/dist/esm/icons/beef.js";
+export { default as ChevronDown } from "lucide-react/dist/esm/icons/chevron-down.js";
+export { default as CupSoda } from "lucide-react/dist/esm/icons/cup-soda.js";
+export { default as Fish } from "lucide-react/dist/esm/icons/fish.js";
+export { default as IceCreamBowl } from "lucide-react/dist/esm/icons/ice-cream-bowl.js";
+export { default as ImagePlus } from "lucide-react/dist/esm/icons/image-plus.js";
+export { default as Loader2 } from "lucide-react/dist/esm/icons/loader-2.js";
+export { default as Lock } from "lucide-react/dist/esm/icons/lock.js";
+export { default as Menu } from "lucide-react/dist/esm/icons/menu.js";
+export { default as Pencil } from "lucide-react/dist/esm/icons/pencil.js";
+export { default as Plus } from "lucide-react/dist/esm/icons/plus.js";
+export { default as RefreshCw } from "lucide-react/dist/esm/icons/refresh-cw.js";
+export { default as Save } from "lucide-react/dist/esm/icons/save.js";
+export { default as Trash2 } from "lucide-react/dist/esm/icons/trash-2.js";
+export { default as Utensils } from "lucide-react/dist/esm/icons/utensils.js";
+export { default as X } from "lucide-react/dist/esm/icons/x.js";

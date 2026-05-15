@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cardapio
+      POSTGRES_USER: cardapio
+      POSTGRES_PASSWORD: cardapio
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cardapio -d cardapio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local-postgres
+      DATABASE_URL: jdbc:postgresql://db:5432/cardapio
+      DATABASE_USERNAME: cardapio
+      DATABASE_PASSWORD: cardapio
+      JWT_SECRET: troque-por-um-segredo-forte-com-32-caracteres-ou-mais
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: Lax
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      SUPABASE_URL: http://localhost:54321
+      SUPABASE_KEY: dev-only-supabase-key
+      SUPABASE_BUCKET: cardapio-imagens
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
