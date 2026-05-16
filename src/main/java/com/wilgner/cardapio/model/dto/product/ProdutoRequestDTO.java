@@ -25,8 +25,8 @@ public record ProdutoRequestDTO(
         @Pattern(regexp = "^[\\p{L}\\p{N} ._-]+$", message = "Categoria inválida")
         String categoria,
 
-        @Size(max = 2048, message = "URL da imagem é muito longa")
-        @Pattern(regexp = "^(|https?://.+)$", message = "URL da imagem inválida")
+        @Size(max = 2048, message = "Imagem é muito longa")
+        @Pattern(regexp = "^(|https?://.+)$", message = "Imagem inválida")
         String imageUrl
 
 ) {

@@ -25,9 +25,14 @@ html {
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.46), transparent 28rem),
     linear-gradient(180deg, #ecd9b9 0%, #f8ecd9 48%, #ddc39d 100%);
+}
+
+img {
+  max-width: 100%;
 }
 
 button,
@@ -43,35 +48,21 @@ button {
 .menu-page {
   width: min(100%, 980px);
   margin: 0 auto;
-  min-height: 100vh;
+  min-height: 100svh;
   background: var(--paper);
   box-shadow: 0 22px 70px rgba(42, 27, 14, 0.24);
 }
 
 .hero {
   position: relative;
-  min-height: 360px;
+  height: clamp(300px, 42vw, 430px);
   overflow: hidden;
   border-bottom-left-radius: 46% 7%;
   border-bottom-right-radius: 46% 7%;
   background:
-    linear-gradient(180deg, rgba(31, 19, 10, 0.18), rgba(31, 19, 10, 0.06) 46%, rgba(31, 19, 10, 0.3)),
-    url("/assets/padrao-layout.png") center top / cover no-repeat;
-}
-
-.hero::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 72px;
-  background: linear-gradient(180deg, transparent, rgba(45, 27, 12, 0.42));
-}
-
-.hero-menu {
-  position: absolute;
-  z-index: 3;
-  top: 28px;
-  left: 26px;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 42%),
+    radial-gradient(circle at 18% 16%, rgba(246, 213, 151, 0.52), transparent 22rem),
+    linear-gradient(160deg, #f5dfbc 0%, #fff5e2 45%, #d8b684 100%);
 }
 
 .round-icon,
@@ -93,17 +84,6 @@ button {
   box-shadow: 0 8px 22px rgba(44, 29, 17, 0.22);
 }
 
-.hero-brand {
-  position: absolute;
-  z-index: 2;
-  left: 24px;
-  right: 24px;
-  bottom: 38px;
-  text-align: center;
-  color: #2a170c;
-  text-shadow: 0 2px 18px rgba(255, 238, 204, 0.78);
-}
-
 .brand-kicker {
   display: block;
   text-transform: uppercase;
@@ -113,21 +93,12 @@ button {
   color: var(--green);
 }
 
-.hero-brand h1,
 .login-visual h1 {
   margin: 6px 0 10px;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2.4rem, 12vw, 5.2rem);
   line-height: 0.9;
   color: #331c0d;
-}
-
-.hero-brand p {
-  margin: 0 auto;
-  max-width: 560px;
-  font-size: clamp(1rem, 3vw, 1.45rem);
-  font-weight: 600;
-  color: #31552b;
 }
 
 .admin-strip {
@@ -146,6 +117,52 @@ button {
   color: var(--green);
 }
 
+.hero-content {
+  position: absolute;
+  inset: auto clamp(18px, 6vw, 58px) clamp(36px, 7vw, 74px);
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 4vw, 30px);
+  color: #2f2114;
+}
+
+.hero-logo {
+  width: clamp(92px, 22vw, 170px);
+  height: clamp(92px, 22vw, 170px);
+  flex: 0 0 auto;
+  object-fit: contain;
+  border-radius: 18px;
+  background: rgba(255, 248, 237, 0.74);
+  box-shadow: 0 16px 40px rgba(62, 35, 18, 0.18);
+}
+
+.hero-logo-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--green);
+}
+
+.hero-title {
+  min-width: 0;
+}
+
+.hero-title span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--green);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.hero-title h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.35rem, 11vw, 6.3rem);
+  line-height: 0.88;
+  overflow-wrap: anywhere;
+}
+
 .icon-button,
 .mini-button,
 .modal-close {
@@ -157,7 +174,7 @@ button {
 }
 
 .paper {
-  padding: 32px clamp(16px, 5vw, 56px) 28px;
+  padding: 26px clamp(16px, 5vw, 56px) 28px;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.42), transparent 30%, rgba(255, 255, 255, 0.25)),
     var(--paper);
@@ -178,11 +195,27 @@ button {
   color: var(--green);
 }
 
-.intro-row p {
+.intro-copy p {
   margin: 0;
   font-size: clamp(1.05rem, 3.6vw, 1.55rem);
   line-height: 1.35;
   color: #365d31;
+}
+
+.store-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.store-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .category-tabs {
@@ -192,11 +225,13 @@ button {
   display: flex;
   gap: 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 7px;
-  margin: 0 0 28px;
+  margin: 0 0 30px;
   border: 3px solid #86552c;
   border-radius: 22px;
-  background: linear-gradient(180deg, #9a6a37, #5e351d);
+  background: linear-gradient(180deg, #966735, #5e351d);
   box-shadow: 0 8px 18px rgba(65, 38, 17, 0.2);
   scrollbar-width: none;
 }
@@ -207,7 +242,7 @@ button {
 
 .category-tab {
   flex: 1 0 auto;
-  min-width: 132px;
+  min-width: clamp(112px, 28vw, 132px);
   height: 50px;
   display: inline-flex;
   align-items: center;
@@ -221,9 +256,14 @@ button {
   white-space: nowrap;
 }
 
+.category-tab span {
+  min-width: 0;
+}
+
 .category-tab.active {
-  color: #fff9ef;
-  background: linear-gradient(180deg, #54723f, #2f5c34);
+  color: #2f2114;
+  background: linear-gradient(180deg, #fffdf6, #f1dfc1);
+  box-shadow: inset 0 0 0 2px rgba(80, 48, 25, 0.16);
 }
 
 .category-tab.add-tab {
@@ -287,6 +327,10 @@ button {
   border-radius: 15px;
   background: rgba(255, 250, 241, 0.76);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.product-card.admin-card {
+  padding-bottom: 58px;
 }
 
 .product-card.inactive {
@@ -402,8 +446,8 @@ button {
 
 .floating-action {
   position: fixed;
-  right: 22px;
-  bottom: 22px;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
   z-index: 20;
   width: 64px;
   height: 64px;
@@ -429,7 +473,7 @@ button {
 .product-modal {
   position: relative;
   width: min(100%, 620px);
-  max-height: calc(100vh - 36px);
+  max-height: calc(100svh - 36px);
   overflow-y: auto;
   padding: 26px;
   border-radius: 22px;
@@ -544,21 +588,58 @@ textarea:focus {
 }
 
 .login-page {
-  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
   background: var(--paper);
+}
+
+.home-page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 22% 15%, rgba(255, 255, 255, 0.48), transparent 24rem),
+    linear-gradient(160deg, #f6e4c5, #fff7e9 52%, #d6bb90);
+}
+
+.home-panel {
+  width: min(100%, 620px);
+  padding: clamp(28px, 7vw, 54px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 250, 241, 0.84);
+  box-shadow: 0 22px 64px rgba(69, 42, 20, 0.15);
+}
+
+.home-panel h1 {
+  margin: 8px 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 9vw, 4.4rem);
+  line-height: 0.94;
+}
+
+.home-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.home-actions {
+  margin-top: 24px;
 }
 
 .login-visual {
   position: relative;
   display: flex;
   align-items: flex-end;
-  min-height: 100vh;
+  min-height: 100svh;
   padding: 36px;
   background:
-    linear-gradient(180deg, rgba(31, 19, 10, 0.15), rgba(31, 19, 10, 0.72)),
-    url("/assets/padrao-layout.png") center top / cover no-repeat;
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.34), transparent 18rem),
+    linear-gradient(145deg, #375f31, #8d6537 48%, #f4dfbd);
 }
 
 .login-visual .round-icon {
@@ -594,7 +675,7 @@ textarea:focus {
 }
 
 .center-screen {
-  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   place-items: center;
   color: var(--green);
@@ -604,10 +685,27 @@ textarea:focus {
   .menu-page {
     width: 100%;
     border-radius: 0;
+    box-shadow: none;
   }
 
   .hero {
-    min-height: 330px;
+    height: clamp(190px, 53vw, 330px);
+  }
+
+  .hero-content {
+    inset-inline: 18px;
+    bottom: 34px;
+    gap: 14px;
+  }
+
+  .hero-logo {
+    width: clamp(72px, 22vw, 112px);
+    height: clamp(72px, 22vw, 112px);
+    border-radius: 14px;
+  }
+
+  .hero-title h1 {
+    font-size: clamp(2rem, 10vw, 3.8rem);
   }
 
   .round-icon {
@@ -615,27 +713,31 @@ textarea:focus {
     height: 58px;
   }
 
-  .hero-menu {
-    top: 18px;
-    left: 18px;
-  }
-
   .admin-strip {
     top: 18px;
     right: 14px;
+    max-width: calc(100% - 28px);
+    padding: 7px 8px 7px 12px;
   }
 
   .paper {
-    padding-inline: 14px;
+    padding: 18px 14px 24px;
   }
 
   .intro-row {
     grid-template-columns: 54px minmax(0, 1fr);
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+
+  .reed-mark {
+    font-size: 2.55rem;
   }
 
   .category-tab {
-    min-width: 118px;
+    min-width: 108px;
     height: 46px;
+    font-size: 0.96rem;
   }
 
   .section-title-row {
@@ -660,10 +762,15 @@ textarea:focus {
     padding: 12px 10px 12px 15px;
   }
 
+  .product-card.admin-card {
+    padding-bottom: 12px;
+  }
+
   .product-actions {
     position: static;
     grid-column: 1 / -1;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .form-grid,
@@ -672,25 +779,215 @@ textarea:focus {
   }
 
   .login-visual {
-    min-height: 42vh;
+    min-height: 34svh;
+    padding: 82px 24px 26px;
+  }
+
+  .login-visual h1 {
+    max-width: 520px;
+    font-size: clamp(2rem, 8vw, 3.2rem);
+    line-height: 0.98;
   }
 
   .login-panel {
-    min-height: 58vh;
+    min-height: 66svh;
+    align-items: start;
+    padding: 22px 16px 32px;
+  }
+
+  .login-form {
+    padding: 22px;
   }
 }
 
 @media (max-width: 430px) {
+  .hero {
+    height: 196px;
+    border-bottom-left-radius: 48% 5%;
+    border-bottom-right-radius: 48% 5%;
+  }
+
+  .hero-content {
+    inset-inline: 14px;
+    bottom: 26px;
+    gap: 10px;
+  }
+
+  .hero-logo {
+    width: 66px;
+    height: 66px;
+    border-radius: 12px;
+  }
+
+  .hero-title span {
+    margin-bottom: 5px;
+    font-size: 0.72rem;
+  }
+
+  .hero-title h1 {
+    font-size: clamp(1.55rem, 8vw, 2rem);
+    line-height: 0.94;
+    overflow-wrap: normal;
+  }
+
+  .admin-strip span {
+    display: none;
+  }
+
+  .category-tabs {
+    margin-inline: -8px;
+    border-width: 2px;
+    border-radius: 18px;
+    padding: 5px;
+  }
+
+  .category-tab {
+    flex: 0 0 auto;
+    min-width: 96px;
+    height: 42px;
+    gap: 6px;
+    border-radius: 12px;
+    padding-inline: 9px;
+    font-size: 0.82rem;
+  }
+
+  .category-tab svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+  }
+
+  .intro-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .intro-copy p {
+    font-size: 1rem;
+  }
+
+  .wood-title {
+    max-width: 100%;
+  }
+
   .product-card {
     grid-template-columns: minmax(0, 1fr) 96px;
+    padding: 11px 9px 11px 12px;
+    border-radius: 12px;
   }
 
   .product-image-wrap {
     aspect-ratio: 1 / 1;
+    border-radius: 10px;
   }
 
-  .hero-brand {
-    left: 14px;
-    right: 14px;
+  .product-actions {
+    justify-content: flex-start;
+  }
+
+  .mini-button,
+  .icon-button,
+  .modal-close {
+    width: 34px;
+    height: 34px;
+  }
+
+  .modal-backdrop {
+    padding: 8px 8px 0;
+  }
+
+  .product-modal {
+    max-height: 92svh;
+    padding: 22px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+  }
+
+  .product-modal h2,
+  .login-form h2 {
+    font-size: 1.65rem;
+  }
+
+  .login-visual h1 {
+    font-size: clamp(1.85rem, 9vw, 2.4rem);
+  }
+
+  input,
+  textarea {
+    padding: 12px;
+  }
+
+  .floating-action {
+    width: 58px;
+    height: 58px;
+  }
+
+}
+
+@media (max-width: 360px) {
+  .hero {
+    height: 190px;
+  }
+
+  .hero-content {
+    inset-inline: 12px;
+    bottom: 24px;
+  }
+
+  .hero-logo {
+    width: 58px;
+    height: 58px;
+  }
+
+  .hero-title h1 {
+    font-size: 1.55rem;
+  }
+
+  .admin-strip {
+    top: 12px;
+    right: 10px;
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .icon-button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .paper {
+    padding-inline: 10px;
+  }
+
+  .product-card {
+    grid-template-columns: minmax(0, 1fr) 76px;
+    gap: 8px;
+  }
+
+  .product-card h3 {
+    font-size: 1.06rem;
+  }
+
+  .product-card p {
+    font-size: 0.9rem;
+  }
+
+  .product-card strong {
+    font-size: 1.05rem;
+  }
+
+  .product-actions {
+    gap: 5px;
+  }
+
+  .mini-button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .floating-action {
+    width: 52px;
+    height: 52px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
   }
 }

@@ -30,6 +30,13 @@ public class Produto {
     @Column(name = "imagem_url", length = 2048)
     private String imagemUrl;
 
+    @Column(nullable = false)
+    private Integer ordem = 0;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "estabelecimento_id", nullable = false)
+    private Estabelecimento estabelecimento;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
@@ -40,6 +47,22 @@ public class Produto {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Estabelecimento getEstabelecimento() {
+        return estabelecimento;
+    }
+
+    public void setEstabelecimento(Estabelecimento estabelecimento) {
+        this.estabelecimento = estabelecimento;
+    }
+
+    public Integer getOrdem() {
+        return ordem;
+    }
+
+    public void setOrdem(Integer ordem) {
+        this.ordem = ordem;
     }
 
     public Usuario getUsuario() {
@@ -101,7 +124,8 @@ public class Produto {
     public Produto() {
     }
 
-    public Produto(Long id, String nome, String descricao, BigDecimal preco, boolean ativo, String categoria, String imagemUrl, Usuario usuario) {
+    public Produto(Long id, String nome, String descricao, BigDecimal preco, boolean ativo, String categoria,
+                   String imagemUrl, Integer ordem, Estabelecimento estabelecimento, Usuario usuario) {
         this.id = id;
         this.nome = nome;
         this.descricao = descricao;
@@ -109,6 +133,8 @@ public class Produto {
         this.ativo = ativo;
         this.categoria = categoria;
         this.imagemUrl = imagemUrl;
+        this.ordem = ordem;
+        this.estabelecimento = estabelecimento;
         this.usuario = usuario;
     }
 }

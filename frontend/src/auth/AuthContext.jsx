@@ -2,20 +2,27 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api } from "../api/client.js";
 
 const AuthContext = createContext(null);
-const USERNAME_KEY = "cardapio.currentUsername";
 
 export function AuthProvider({ children }) {
   const [status, setStatus] = useState("loading");
-  const [username, setUsername] = useState(() => localStorage.getItem(USERNAME_KEY) || "");
+  const [user, setUser] = useState(() => api.getStoredUser());
   const [error, setError] = useState("");
 
   const validate = useCallback(async () => {
     try {
-      await api.validate();
+      const session = await api.validate();
+      setUser({
+        userId: session.userId,
+        username: session.username,
+        email: session.email,
+        estabelecimentoSlug: session.estabelecimentoSlug,
+        roles: session.roles || []
+      });
       setStatus("authenticated");
       setError("");
       return true;
     } catch {
+      setUser(null);
       setStatus("anonymous");
       return false;
     }
@@ -25,32 +32,49 @@ export function AuthProvider({ children }) {
     validate();
   }, [validate]);
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+      setStatus("anonymous");
+    };
+
+    window.addEventListener("cardapio:session-expired", handleSessionExpired);
+    return () => window.removeEventListener("cardapio:session-expired", handleSessionExpired);
+  }, []);
+
   async function login({ username: nextUsername, password }) {
     setError("");
     const response = await api.login(nextUsername, password);
-    localStorage.setItem(USERNAME_KEY, nextUsername);
-    setUsername(nextUsername);
+    setUser({
+      userId: response.userId,
+      username: response.username || nextUsername,
+      email: response.email,
+      estabelecimentoSlug: response.estabelecimentoSlug,
+      roles: response.roles || []
+    });
     setStatus("authenticated");
     return response;
   }
 
   async function logout() {
     await api.logout();
-    localStorage.removeItem(USERNAME_KEY);
-    setUsername("");
+    setUser(null);
     setStatus("anonymous");
   }
 
   const value = useMemo(() => ({
     status,
-    username,
+    user,
+    username: user?.username || "",
+    roles: user?.roles || [],
+    estabelecimentoSlug: user?.estabelecimentoSlug || "",
     error,
     setError,
     login,
     logout,
     validate,
     isAuthenticated: status === "authenticated"
-  }), [error, status, username, validate]);
+  }), [error, status, user, validate]);
 
   return (
     <AuthContext.Provider value={value}>

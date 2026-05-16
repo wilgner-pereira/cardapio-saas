@@ -19,7 +19,8 @@ public class ProdutoMapper {
                 produto.getPreco(),
                 produto.getCategoria(),
                 produto.getImagemUrl(),
-                produto.isAtivo()
+                produto.isAtivo(),
+                produto.getOrdem()
         );
     }
 

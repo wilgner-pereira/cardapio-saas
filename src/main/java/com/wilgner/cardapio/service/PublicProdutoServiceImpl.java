@@ -3,10 +3,10 @@ package com.wilgner.cardapio.service;
 import com.wilgner.cardapio.exception.ResourceNotFoundException;
 import com.wilgner.cardapio.model.dto.product.ProdutoMapper;
 import com.wilgner.cardapio.model.dto.product.ProdutoResponseDTO;
+import com.wilgner.cardapio.model.entity.Estabelecimento;
 import com.wilgner.cardapio.model.entity.Produto;
-import com.wilgner.cardapio.model.entity.Usuario;
+import com.wilgner.cardapio.repository.EstabelecimentoRepository;
 import com.wilgner.cardapio.repository.ProdutoRepository;
-import com.wilgner.cardapio.repository.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -16,26 +16,66 @@ import java.util.List;
 @Service
 public class PublicProdutoServiceImpl {
     private final ProdutoRepository produtoRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final EstabelecimentoRepository estabelecimentoRepository;
     private final ProdutoMapper produtoMapper;
-    public PublicProdutoServiceImpl(ProdutoRepository produtoRepository, UsuarioRepository usuarioRepository, ProdutoMapper produtoMapper) {
+
+    public PublicProdutoServiceImpl(ProdutoRepository produtoRepository,
+                                    EstabelecimentoRepository estabelecimentoRepository,
+                                    ProdutoMapper produtoMapper) {
         this.produtoRepository = produtoRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.estabelecimentoRepository = estabelecimentoRepository;
         this.produtoMapper = produtoMapper;
     }
 
     @Transactional
-    public List<ProdutoResponseDTO> listarProdutoDinamico(String name, String categoria) {
+    public List<ProdutoResponseDTO> listarProdutoDinamico(String slug, String categoria) {
+        Estabelecimento estabelecimento = estabelecimentoRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
 
-        Usuario usuario = usuarioRepository.findByUsername(name)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        if (!estabelecimento.getAtivo()) {
+            throw new ResourceNotFoundException("Estabelecimento desativado");
+        }
 
-        if(StringUtils.hasText(categoria)) {
-            List<Produto> produtos = produtoRepository.findByUsuarioAndCategoriaAndAtivo(usuario, categoria.trim(), true);
+        if (StringUtils.hasText(categoria)) {
+            List<Produto> produtos = produtoRepository.findByEstabelecimentoCategoriaAtivoOrderByOrdem(
+                    estabelecimento, categoria.trim()
+            );
             return produtoMapper.toDTOList(produtos);
         }
-        return produtoMapper.toDTOList(produtoRepository.findByUsuarioAndAtivo(usuario, true));
+
+        List<Produto> produtos = produtoRepository.findByEstabelecimentoAtivoOrderByCategoriaAndOrdem(
+                estabelecimento
+        );
+        return produtoMapper.toDTOList(produtos);
     }
 
+    @Transactional
+    public EstabelecimentoInfoDTO obterInfoEstabelecimento(String slug) {
+        Estabelecimento estabelecimento = estabelecimentoRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
 
+        if (!estabelecimento.getAtivo()) {
+            throw new ResourceNotFoundException("Estabelecimento desativado");
+        }
+
+        return new EstabelecimentoInfoDTO(
+                estabelecimento.getNome(),
+                estabelecimento.getDescricao(),
+                estabelecimento.getLogoUrl(),
+                estabelecimento.getHorarioFuncionamento(),
+                estabelecimento.getTelefone(),
+                estabelecimento.getEndereco(),
+                estabelecimento.getEmailContato()
+        );
+    }
+
+    public record EstabelecimentoInfoDTO(
+            String nome,
+            String descricao,
+            String logoUrl,
+            String horarioFuncionamento,
+            String telefone,
+            String endereco,
+            String emailContato
+    ) {}
 }

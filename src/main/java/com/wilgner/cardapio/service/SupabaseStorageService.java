@@ -5,9 +5,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
 import java.util.Set;
@@ -73,5 +75,45 @@ public class SupabaseStorageService {
                 .block(Duration.ofMinutes(2));
 
         return projectUrl + "/storage/v1/object/public/" + bucket + "/" + fileName;
+    }
+
+    public StoredFile downloadFile(String fileName) {
+        if (fileName == null || fileName.isBlank() || fileName.contains("/") || fileName.contains("\\")) {
+            throw new IllegalArgumentException("Nome de arquivo inválido");
+        }
+
+        String downloadUrl = UriComponentsBuilder
+                .fromHttpUrl(projectUrl)
+                .pathSegment("storage", "v1", "object", bucket, fileName)
+                .build()
+                .toUriString();
+
+        ResponseEntity<byte[]> response = webClient.get()
+                .uri(downloadUrl)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .header("apikey", apiKey)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, storageResponse ->
+                        storageResponse.createException()
+                                .map(ex -> new ExternalServiceException("Falha ao buscar imagem no storage", ex))
+                )
+                .toEntity(byte[].class)
+                .onErrorMap(ex -> ex instanceof ExternalServiceException
+                        ? ex
+                        : new ExternalServiceException("Falha ao buscar imagem no storage", ex))
+                .block(Duration.ofMinutes(2));
+
+        if (response == null || response.getBody() == null) {
+            throw new ExternalServiceException("Imagem não encontrada no storage");
+        }
+
+        MediaType contentType = response.getHeaders().getContentType();
+        return new StoredFile(
+                response.getBody(),
+                contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM
+        );
+    }
+
+    public record StoredFile(byte[] bytes, MediaType contentType) {
     }
 }

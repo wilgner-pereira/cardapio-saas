@@ -1,4 +1,4 @@
 package com.wilgner.cardapio.model.dto.auth;
 
-public record RegisterResponseDTO(String username) {
+public record RegisterResponseDTO(String username, String slug) {
 }

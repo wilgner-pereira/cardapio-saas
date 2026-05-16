@@ -15,6 +15,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,13 +42,15 @@ class CardapioApplicationTests {
 
     @Test
     void adminEndpointsRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/admin/produto"))
+        mockMvc.perform(get("/painel/produtos"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void registerRejectsInvalidPayload() throws Exception {
-        mockMvc.perform(post("/auth/admin/register")
+        mockMvc.perform(post("/plataforma/estabelecimentos")
+                        .with(user("platform-admin").roles("ADMIN"))
+                        .with(csrf())
                         .contentType("application/json")
                         .content("""
                                 {
@@ -67,7 +70,7 @@ class CardapioApplicationTests {
         String username = uniqueUsername("admin");
         register(username);
 
-        mockMvc.perform(post("/auth/admin/login")
+        mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
                         .content(loginPayload(username)))
                 .andExpect(status().isOk())
@@ -84,7 +87,7 @@ class CardapioApplicationTests {
         String username = uniqueUsername("swagger");
         String accessToken = registerAndLoginWithBearer(username);
 
-        mockMvc.perform(post("/admin/produto")
+        mockMvc.perform(post("/painel/produtos")
                         .header("Authorization", "Bearer " + accessToken)
                         .contentType("application/json")
                         .content("""
@@ -105,7 +108,7 @@ class CardapioApplicationTests {
         String username = uniqueUsername("loja");
         Cookie[] cookies = registerAndLogin(username);
 
-        MvcResult created = mockMvc.perform(post("/admin/produto")
+        MvcResult created = mockMvc.perform(post("/painel/produtos")
                         .with(csrf())
                         .cookie(cookies)
                         .contentType("application/json")
@@ -129,7 +132,7 @@ class CardapioApplicationTests {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].nome").value("Pizza"));
 
-        mockMvc.perform(patch("/admin/produto/{id}/status", produtoId)
+        mockMvc.perform(patch("/painel/produtos/{id}/status", produtoId)
                         .with(csrf())
                         .cookie(cookies)
                         .contentType("application/json")
@@ -148,7 +151,7 @@ class CardapioApplicationTests {
 
     private Cookie[] registerAndLogin(String username) throws Exception {
         register(username);
-        MvcResult login = mockMvc.perform(post("/auth/admin/login")
+        MvcResult login = mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
                         .content(loginPayload(username)))
                 .andExpect(status().isOk())
@@ -162,7 +165,7 @@ class CardapioApplicationTests {
 
     private String registerAndLoginWithBearer(String username) throws Exception {
         register(username);
-        MvcResult login = mockMvc.perform(post("/auth/admin/login")
+        MvcResult login = mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
                         .content(loginPayload(username)))
                 .andExpect(status().isOk())
@@ -172,15 +175,19 @@ class CardapioApplicationTests {
     }
 
     private void register(String username) throws Exception {
-        mockMvc.perform(post("/auth/admin/register")
+        mockMvc.perform(post("/plataforma/estabelecimentos")
+                        .with(user("platform-admin").roles("ADMIN"))
+                        .with(csrf())
                         .contentType("application/json")
                         .content("""
                                 {
+                                  "nome": "%s",
                                   "username": "%s",
                                   "password": "%s",
-                                  "email": "%s@cardapio.test"
+                                  "email": "%s@cardapio.test",
+                                  "descricao": "Cardapio de teste"
                                 }
-                                """.formatted(username, PASSWORD, username)))
+                                """.formatted(username, username, PASSWORD, username)))
                 .andExpect(status().isCreated());
     }
 

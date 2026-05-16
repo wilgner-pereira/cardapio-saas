@@ -1,9 +1,6 @@
 package com.wilgner.cardapio.model.dto.auth;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
 public record RegisterRequestDTO(
         @NotBlank(message = "O campo 'username' não pode estar em branco")
@@ -14,7 +11,6 @@ public record RegisterRequestDTO(
         @NotBlank(message = "O campo 'password' não pode estar em branco")
         @Size(min = 8, max = 100)
         String password,
-
 
         @NotBlank
         @Email

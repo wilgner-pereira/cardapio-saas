@@ -4,6 +4,7 @@ import com.wilgner.cardapio.exception.ResourceNotFoundException;
 import com.wilgner.cardapio.model.dto.product.ProdutoMapper;
 import com.wilgner.cardapio.model.dto.product.ProdutoRequestDTO;
 import com.wilgner.cardapio.model.dto.product.ProdutoResponseDTO;
+import com.wilgner.cardapio.model.entity.Estabelecimento;
 import com.wilgner.cardapio.model.entity.Produto;
 import com.wilgner.cardapio.model.entity.Usuario;
 import com.wilgner.cardapio.repository.ProdutoRepository;
@@ -20,6 +21,7 @@ public class AdminProdutoServiceImpl {
     private final ProdutoRepository produtoRepository;
     private final UsuarioRepository usuarioRepository;
     private final ProdutoMapper produtoMapper;
+
     public AdminProdutoServiceImpl(ProdutoRepository produtoRepository, UsuarioRepository usuarioRepository, ProdutoMapper produtoMapper) {
         this.produtoRepository = produtoRepository;
         this.usuarioRepository = usuarioRepository;
@@ -29,14 +31,17 @@ public class AdminProdutoServiceImpl {
     @Transactional
     public ProdutoResponseDTO criarProduto(ProdutoRequestDTO produtoRequestDTO) {
         Usuario usuario = getUsuarioAutenticado();
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
 
-        Produto produto  = new  Produto();
+        Produto produto = new Produto();
+        produto.setEstabelecimento(estabelecimento);
         produto.setUsuario(usuario);
         produto.setNome(produtoRequestDTO.nome().trim());
         produto.setDescricao(produtoRequestDTO.descricao().trim());
         produto.setPreco(produtoRequestDTO.preco());
         produto.setCategoria(produtoRequestDTO.categoria().trim());
         produto.setImagemUrl(produtoRequestDTO.imageUrl());
+        produto.setOrdem(proximaOrdem(estabelecimento, produto.getCategoria()));
 
         Produto salvo = produtoRepository.save(produto);
         return produtoMapper.toDTO(salvo);
@@ -45,7 +50,8 @@ public class AdminProdutoServiceImpl {
     @Transactional
     public ProdutoResponseDTO atualizarProduto(ProdutoRequestDTO produtoRequestDTO, Long produtoId) {
         Usuario usuario = getUsuarioAutenticado();
-        Produto produto = getProdutoDoUsuario(usuario, produtoId);
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
 
         produto.setNome(produtoRequestDTO.nome().trim());
         produto.setDescricao(produtoRequestDTO.descricao().trim());
@@ -58,39 +64,56 @@ public class AdminProdutoServiceImpl {
     }
 
     @Transactional
-    public void  deleteProduto(Long produtoId) {
+    public void deleteProduto(Long produtoId) {
         Usuario usuario = getUsuarioAutenticado();
-        Produto produto = getProdutoDoUsuario(usuario, produtoId);
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
 
         produtoRepository.delete(produto);
-
     }
 
     @Transactional
     public ProdutoResponseDTO atualizarStatus(Long produtoId, boolean ativo) {
         Usuario usuario = getUsuarioAutenticado();
-        Produto produto = getProdutoDoUsuario(usuario, produtoId);
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
         produto.setAtivo(ativo);
         return produtoMapper.toDTO(produtoRepository.save(produto));
     }
 
-
     @Transactional
     public ProdutoResponseDTO pesquisarProdutoPorId(Long produtoId) {
         Usuario usuario = getUsuarioAutenticado();
-        Produto produto = getProdutoDoUsuario(usuario, produtoId);
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
         return produtoMapper.toDTO(produto);
     }
 
     @Transactional
     public List<ProdutoResponseDTO> listarProdutoDinamico(String categoria) {
         Usuario usuario = getUsuarioAutenticado();
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
 
-        if(StringUtils.hasText(categoria)) {
-            List<Produto> produtos = produtoRepository.findByUsuarioAndCategoria(usuario, categoria.trim());
+        if (StringUtils.hasText(categoria)) {
+            List<Produto> produtos = produtoRepository.findByEstabelecimentoAndCategoria(estabelecimento, categoria.trim());
             return produtoMapper.toDTOList(produtos);
         }
-        return produtoMapper.toDTOList(produtoRepository.findByUsuario(usuario));
+        return produtoMapper.toDTOList(produtoRepository.findByEstabelecimentoOrderByCategoriaAndOrdem(estabelecimento));
+    }
+
+    @Transactional
+    public ProdutoResponseDTO atualizarOrdem(Long produtoId, Integer novaOrdem) {
+        Usuario usuario = getUsuarioAutenticado();
+        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
+
+        produto.setOrdem(novaOrdem);
+        return produtoMapper.toDTO(produtoRepository.save(produto));
+    }
+
+    private Integer proximaOrdem(Estabelecimento estabelecimento, String categoria) {
+        Integer maiorOrdem = produtoRepository.findMaiorOrdemPorCategoria(estabelecimento, categoria);
+        return maiorOrdem + 1;
     }
 
     private Usuario getUsuarioAutenticado() {
@@ -102,10 +125,8 @@ public class AdminProdutoServiceImpl {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
-    private Produto getProdutoDoUsuario(Usuario usuario, Long produtoId) {
-        return produtoRepository.findByUsuarioAndId(usuario, produtoId)
+    private Produto getProdutoDoEstabelecimento(Estabelecimento estabelecimento, Long produtoId) {
+        return produtoRepository.findByEstabelecimentoAndId(estabelecimento, produtoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
     }
-
-
 }

@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final SecurityFilter securityFilter;
@@ -56,10 +58,10 @@ public class SecurityConfig {
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .ignoringRequestMatchers(bearerTokenRequestMatcher())
                         .ignoringRequestMatchers(
-                                "/auth/admin/login",
-                                "/auth/admin/register",
-                                "/auth/admin/refresh",
-                                "/auth/admin/logout",
+                                "/auth/login",
+                                "/auth/refresh",
+                                "/auth/logout",
+                                "/setup/admin",
                                 "/public/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
@@ -75,15 +77,15 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/public/**", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/admin/refresh").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/admin/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/admin/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/admin/logout").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/auth/admin/csrf").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/auth/admin/validate").authenticated()
-                        .requestMatchers("/auth/admin/**").authenticated()
-                        .requestMatchers("/admin/**").hasRole("USER")
-                        .requestMatchers("/storage/**").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/setup/admin").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/auth/validate").authenticated()
+                        .requestMatchers("/auth/**").authenticated()
+                        .requestMatchers("/plataforma/**").hasRole("ADMIN")
+                        .requestMatchers("/painel/**").hasRole("USER")
                         .anyRequest().authenticated()
                 )
 

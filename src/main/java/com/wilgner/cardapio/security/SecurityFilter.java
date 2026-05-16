@@ -44,7 +44,7 @@ public class SecurityFilter extends OncePerRequestFilter {
                 // tenta validar o token normalmente
                 String username = tokenService.validateAccessToken(token);
 
-                Usuario user = usuarioRepository.findByUsername(username)
+                Usuario user = usuarioRepository.findWithRolesAndEstabelecimentoByUsername(username)
                         .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
 
                 UserDetails userDetails = new CustomUserDetails(user);

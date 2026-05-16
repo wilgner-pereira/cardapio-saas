@@ -8,7 +8,6 @@ import java.util.*;
 @Table(name = "usuario")
 public class Usuario {
 
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,6 +21,10 @@ public class Usuario {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "estabelecimento_id", nullable = false)
+    private Estabelecimento estabelecimento;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns  = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
@@ -29,12 +32,12 @@ public class Usuario {
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Produto> produtos = new ArrayList<>();
 
-    public Usuario(String username, String encodedPassword, String email) {
+    public Usuario(String username, String encodedPassword, String email, Estabelecimento estabelecimento) {
         this.username = username;
         this.password = encodedPassword;
         this.email = email;
+        this.estabelecimento = estabelecimento;
     }
-
 
     public Long getId() {
         return id;
@@ -68,6 +71,14 @@ public class Usuario {
         this.email = email;
     }
 
+    public Estabelecimento getEstabelecimento() {
+        return estabelecimento;
+    }
+
+    public void setEstabelecimento(Estabelecimento estabelecimento) {
+        this.estabelecimento = estabelecimento;
+    }
+
     public Set<Role> getRoles() {
         return roles;
     }
@@ -84,15 +95,16 @@ public class Usuario {
         this.produtos = produtos;
     }
 
-
     public Usuario() {
     }
 
-    public Usuario(Long id, String username, String password, String email, Set<Role> roles, List<Produto> produtos) {
+    public Usuario(Long id, String username, String password, String email, Estabelecimento estabelecimento,
+                   Set<Role> roles, List<Produto> produtos) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.email = email;
+        this.estabelecimento = estabelecimento;
         this.roles = roles;
         this.produtos = produtos;
     }

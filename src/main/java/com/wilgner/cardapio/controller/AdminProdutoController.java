@@ -1,6 +1,7 @@
 package com.wilgner.cardapio.controller;
 
 import com.wilgner.cardapio.model.dto.product.ProdutoRequestDTO;
+import com.wilgner.cardapio.model.dto.product.ProdutoOrdemRequestDTO;
 import com.wilgner.cardapio.model.dto.product.ProdutoResponseDTO;
 import com.wilgner.cardapio.model.dto.product.ProdutoStatusRequestDTO;
 import com.wilgner.cardapio.service.AdminProdutoServiceImpl;
@@ -12,10 +13,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/admin/produto")
+@RequestMapping("/painel/produtos")
 public class AdminProdutoController {
 
-    private AdminProdutoServiceImpl produtoService;
+    private final AdminProdutoServiceImpl produtoService;
+
     public AdminProdutoController(AdminProdutoServiceImpl produtoService) {
         this.produtoService = produtoService;
     }
@@ -38,12 +40,17 @@ public class AdminProdutoController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @PatchMapping("/{id}/ordem")
+    public ResponseEntity<ProdutoResponseDTO> atualizarOrdem(@PathVariable Long id, @RequestBody @Valid ProdutoOrdemRequestDTO ordemRequestDTO) {
+        ProdutoResponseDTO response = produtoService.atualizarOrdem(id, ordemRequestDTO.ordem());
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> excluirProduto(@PathVariable Long id) {
         produtoService.deleteProduto(id);
         return ResponseEntity.noContent().build();
     }
-
 
     @GetMapping("/{id}")
     public ResponseEntity<ProdutoResponseDTO> buscarProdutoPorId(@PathVariable Long id) {
@@ -53,13 +60,9 @@ public class AdminProdutoController {
                 .body(response);
     }
 
-
     @GetMapping
     public ResponseEntity<List<ProdutoResponseDTO>> buscarDinamico(@RequestParam(required = false) String categoria) {
         List<ProdutoResponseDTO> lista = produtoService.listarProdutoDinamico(categoria);
         return ResponseEntity.status(HttpStatus.OK).body(lista);
     }
-
-
-
 }

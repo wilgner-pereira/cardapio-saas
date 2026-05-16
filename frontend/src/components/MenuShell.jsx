@@ -1,15 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../api/client.js";
 import {
+  ArrowDown,
+  ArrowUp,
   Beef,
   ChevronDown,
   CupSoda,
+  Eye,
+  EyeOff,
   Fish,
   IceCreamBowl,
-  Menu,
+  MapPin,
   Pencil,
+  Phone,
   Plus,
   RefreshCw,
-  Save,
   Trash2,
   Utensils,
   X
@@ -63,20 +68,24 @@ function groupByCategory(products, includeUnavailable) {
 
 export function MenuShell({
   username,
+  establishment,
   products,
   mode = "public",
   loading = false,
   error = "",
   onCreate,
   onEdit,
+  onEditEstablishment,
   onDelete,
+  onMoveProduct,
   onToggleStatus,
   onRefresh,
   onLogout
 }) {
   const [activeCategory, setActiveCategory] = useState("");
   const isAdmin = mode === "admin";
-  const storeName = formatStoreName(username);
+  const storeName = establishment?.nome || formatStoreName(username);
+  const description = establishment?.descricao || "";
   const grouped = useMemo(() => groupByCategory(products, isAdmin), [isAdmin, products]);
   const categories = Array.from(grouped.keys());
   const selectedCategory = activeCategory && grouped.has(activeCategory) ? activeCategory : categories[0];
@@ -92,13 +101,12 @@ export function MenuShell({
   return (
     <main className="menu-page">
       <section className="hero">
-        <button className="round-icon hero-menu" type="button" aria-label="Abrir menu">
-          <Menu size={25} />
-        </button>
-
         {isAdmin && (
           <div className="admin-strip">
             <span>Editor</span>
+            <button className="icon-button" type="button" onClick={onEditEstablishment} aria-label="Editar estabelecimento">
+              <Pencil size={18} />
+            </button>
             <button className="icon-button" type="button" onClick={onRefresh} aria-label="Atualizar">
               <RefreshCw size={18} />
             </button>
@@ -108,21 +116,16 @@ export function MenuShell({
           </div>
         )}
 
-        <div className="hero-brand">
-          <span className="brand-kicker">Cardapio digital</span>
-          <h1>{storeName}</h1>
-          <p>Natureza, lazer e boa comida em uma experiencia simples para pedir melhor.</p>
+        <div className="hero-content">
+          <HeroLogo logoUrl={establishment?.logoUrl} storeName={storeName} />
+          <div className="hero-title">
+            <span>{isAdmin ? "Editor visual" : "Cardapio digital"}</span>
+            <h1>{storeName}</h1>
+          </div>
         </div>
       </section>
 
       <section className="paper">
-        <div className="intro-row">
-          <span className="reed-mark" aria-hidden="true">〽</span>
-          <p>
-            Sabores organizados por categoria, com itens frescos, imagens e disponibilidade em tempo real.
-          </p>
-        </div>
-
         <nav className="category-tabs" aria-label="Categorias do cardapio">
           {categories.map(category => {
             const Icon = categoryIcons[normalize(category)] || Utensils;
@@ -146,6 +149,25 @@ export function MenuShell({
             </button>
           )}
         </nav>
+
+        <div className="intro-row">
+          <span className="reed-mark" aria-hidden="true">〽</span>
+          <div className="intro-copy">
+            <p>
+              {description || `Cardapio digital de ${storeName}.`}
+            </p>
+            {(establishment?.telefone || establishment?.endereco) && (
+              <div className="store-meta">
+                {establishment?.telefone && (
+                  <span><Phone size={15} /> {establishment.telefone}</span>
+                )}
+                {establishment?.endereco && (
+                  <span><MapPin size={15} /> {establishment.endereco}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {loading && <StatePanel title="Carregando cardapio" />}
         {error && <StatePanel title={error} tone="danger" />}
@@ -174,6 +196,7 @@ export function MenuShell({
                   isAdmin={isAdmin}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onMoveProduct={onMoveProduct}
                   onToggleStatus={onToggleStatus}
                 />
               ))}
@@ -191,9 +214,9 @@ export function MenuShell({
   );
 }
 
-function ProductCard({ product, isAdmin, onEdit, onDelete, onToggleStatus }) {
+function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onToggleStatus }) {
   return (
-    <article className={`product-card ${!product.ativo ? "inactive" : ""}`}>
+    <article className={`product-card ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""}`}>
       <div className="product-copy">
         <div className="product-title-row">
           <h3>{product.nome}</h3>
@@ -204,13 +227,7 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onToggleStatus }) {
       </div>
 
       <div className="product-image-wrap">
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.nome} loading="lazy" />
-        ) : (
-          <div className="image-placeholder">
-            <Utensils size={28} />
-          </div>
-        )}
+        <ProductImage imageUrl={product.imageUrl} name={product.nome} />
       </div>
 
       {isAdmin && (
@@ -218,8 +235,14 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onToggleStatus }) {
           <button className="mini-button" type="button" onClick={() => onEdit(product)} aria-label="Editar produto">
             <Pencil size={16} />
           </button>
+          <button className="mini-button" type="button" onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto">
+            <ArrowUp size={16} />
+          </button>
+          <button className="mini-button" type="button" onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto">
+            <ArrowDown size={16} />
+          </button>
           <button className="mini-button" type="button" onClick={() => onToggleStatus(product)} aria-label="Alterar disponibilidade">
-            <Save size={16} />
+            {product.ativo ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
           <button className="mini-button danger" type="button" onClick={() => onDelete(product)} aria-label="Remover produto">
             <Trash2 size={16} />
@@ -228,6 +251,51 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onToggleStatus }) {
       )}
     </article>
   );
+}
+
+function HeroLogo({ logoUrl, storeName }) {
+  const [failed, setFailed] = useState(false);
+  const resolvedLogoUrl = api.resolveImageUrl(logoUrl);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [resolvedLogoUrl]);
+
+  if (!resolvedLogoUrl || failed) {
+    return (
+      <div className="hero-logo hero-logo-fallback" aria-hidden="true">
+        <Utensils size={34} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      className="hero-logo"
+      src={resolvedLogoUrl}
+      alt={`Logo ${storeName}`}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function ProductImage({ imageUrl, name }) {
+  const [failed, setFailed] = useState(false);
+  const resolvedImageUrl = api.resolveImageUrl(imageUrl);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [resolvedImageUrl]);
+
+  if (!resolvedImageUrl || failed) {
+    return (
+      <div className="image-placeholder">
+        <Utensils size={28} />
+      </div>
+    );
+  }
+
+  return <img src={resolvedImageUrl} alt={name} loading="lazy" onError={() => setFailed(true)} />;
 }
 
 function StatePanel({ title, tone = "neutral" }) {

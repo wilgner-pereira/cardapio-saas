@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api/client.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { Loader2, Lock, Plus } from "./components/icons.js";
+import { EstablishmentEditorModal } from "./components/EstablishmentEditorModal.jsx";
 import { MenuShell } from "./components/MenuShell.jsx";
 import { ProductEditorModal } from "./components/ProductEditorModal.jsx";
-import { demoProducts } from "./data/demoMenu.js";
 
 function getPath() {
   return window.location.pathname;
@@ -20,13 +20,13 @@ function parseRoute(path) {
   if (publicMatch) {
     return { name: "public", username: decodeURIComponent(publicMatch[1]) };
   }
-  if (path.startsWith("/admin")) {
-    return { name: "admin" };
+  if (path.startsWith("/painel")) {
+    return { name: "panel" };
   }
   if (path.startsWith("/login")) {
     return { name: "login" };
   }
-  return { name: "public", username: "demo" };
+  return { name: "home" };
 }
 
 export function App() {
@@ -40,36 +40,39 @@ export function App() {
   }, []);
 
   if (route.name === "login") {
-    return <LoginPage onSuccess={() => navigate("/admin/produtos")} />;
+    return <LoginPage onSuccess={() => navigate("/painel/produtos")} />;
   }
 
-  if (route.name === "admin") {
+  if (route.name === "panel") {
     return <AdminMenuPage />;
+  }
+
+  if (route.name === "home") {
+    return <HomePage />;
   }
 
   return <PublicMenuPage username={route.username} />;
 }
 
 function PublicMenuPage({ username }) {
-  const [products, setProducts] = useState(username === "demo" ? demoProducts : []);
-  const [loading, setLoading] = useState(username !== "demo");
+  const [products, setProducts] = useState([]);
+  const [establishment, setEstablishment] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
     setError("");
 
-    if (username === "demo") {
-      setProducts(demoProducts);
-      setLoading(false);
-      return undefined;
-    }
-
     setLoading(true);
-    api.getPublicMenu(username)
-      .then(data => {
+    Promise.all([
+      api.getPublicMenu(username),
+      api.getPublicEstablishment(username)
+    ])
+      .then(([productData, establishmentData]) => {
         if (active) {
-          setProducts(data);
+          setProducts(productData);
+          setEstablishment(establishmentData);
         }
       })
       .catch(err => {
@@ -91,10 +94,28 @@ function PublicMenuPage({ username }) {
   return (
     <MenuShell
       username={username}
+      establishment={establishment}
       products={products}
       loading={loading}
       error={error}
     />
+  );
+}
+
+function HomePage() {
+  return (
+    <main className="home-page">
+      <section className="home-panel">
+        <span className="brand-kicker">Cardapio digital</span>
+        <h1>Abra um cardapio pelo endereco do estabelecimento.</h1>
+        <p>Use uma URL como /cardapio/restaurante, /cardapio/pizzaria ou entre no painel para editar seu proprio cardapio.</p>
+        <div className="home-actions">
+          <button className="primary-action" type="button" onClick={() => navigate("/login")}>
+            Entrar no painel
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }
 
@@ -104,14 +125,20 @@ function AdminMenuPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
+  const [establishment, setEstablishment] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [establishmentModalOpen, setEstablishmentModalOpen] = useState(false);
 
-  const loadProducts = useCallback(async () => {
+  const loadAdminData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await api.getAdminProducts();
-      setProducts(data);
+      const [productData, establishmentData] = await Promise.all([
+        api.getAdminProducts(),
+        api.getMyEstablishment()
+      ]);
+      setProducts(productData);
+      setEstablishment(establishmentData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -126,9 +153,9 @@ function AdminMenuPage() {
     }
 
     if (auth.status === "authenticated") {
-      loadProducts();
+      loadAdminData();
     }
-  }, [auth.status, loadProducts]);
+  }, [auth.status, loadAdminData]);
 
   async function handleSubmit(payload) {
     if (editingProduct) {
@@ -138,7 +165,20 @@ function AdminMenuPage() {
     }
     setModalOpen(false);
     setEditingProduct(null);
-    await loadProducts();
+    await loadAdminData();
+  }
+
+  async function handleEstablishmentSubmit(payload) {
+    const { logoUrl, ...establishmentPayload } = payload;
+    let updated = await api.updateMyEstablishment(establishmentPayload);
+
+    if (logoUrl !== (establishment?.logoUrl || "")) {
+      updated = await api.updateMyEstablishmentLogo(logoUrl || "");
+    }
+
+    setEstablishment(updated);
+    setEstablishmentModalOpen(false);
+    await loadAdminData();
   }
 
   async function handleDelete(product) {
@@ -147,12 +187,30 @@ function AdminMenuPage() {
       return;
     }
     await api.deleteProduct(product.id);
-    await loadProducts();
+    await loadAdminData();
   }
 
   async function handleToggleStatus(product) {
     await api.updateProductStatus(product.id, !product.ativo);
-    await loadProducts();
+    await loadAdminData();
+  }
+
+  async function handleMoveProduct(product, direction) {
+    const sameCategory = products.filter(item => item.categoria === product.categoria);
+    const currentIndex = sameCategory.findIndex(item => item.id === product.id);
+    const targetIndex = currentIndex + direction;
+
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sameCategory.length) {
+      return;
+    }
+
+    const target = sameCategory[targetIndex];
+
+    await Promise.all([
+      api.updateProductOrder(product.id, targetIndex),
+      api.updateProductOrder(target.id, currentIndex)
+    ]);
+    await loadAdminData();
   }
 
   async function handleLogout() {
@@ -171,7 +229,8 @@ function AdminMenuPage() {
   return (
     <>
       <MenuShell
-        username={auth.username || "meu-cardapio"}
+        username={establishment?.slug || auth.estabelecimentoSlug || auth.username || "meu-cardapio"}
+        establishment={establishment}
         mode="admin"
         products={products}
         loading={loading}
@@ -184,9 +243,11 @@ function AdminMenuPage() {
           setEditingProduct(product);
           setModalOpen(true);
         }}
+        onEditEstablishment={() => setEstablishmentModalOpen(true)}
         onDelete={handleDelete}
+        onMoveProduct={handleMoveProduct}
         onToggleStatus={handleToggleStatus}
-        onRefresh={loadProducts}
+        onRefresh={loadAdminData}
         onLogout={handleLogout}
       />
 
@@ -210,6 +271,15 @@ function AdminMenuPage() {
             setEditingProduct(null);
           }}
           onSubmit={handleSubmit}
+          onUpload={api.uploadImage}
+        />
+      )}
+
+      {establishmentModalOpen && (
+        <EstablishmentEditorModal
+          establishment={establishment}
+          onClose={() => setEstablishmentModalOpen(false)}
+          onSubmit={handleEstablishmentSubmit}
           onUpload={api.uploadImage}
         />
       )}
@@ -242,7 +312,7 @@ function LoginPage({ onSuccess }) {
   return (
     <main className="login-page">
       <section className="login-visual">
-        <button className="round-icon" type="button" aria-label="Voltar ao cardapio" onClick={() => navigate("/cardapio/demo")}>
+        <button className="round-icon" type="button" aria-label="Voltar" onClick={() => navigate("/")}>
           <Lock size={22} />
         </button>
         <div>
