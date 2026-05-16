@@ -3,13 +3,9 @@ import { api } from "../api/client.js";
 import {
   ArrowDown,
   ArrowUp,
-  Beef,
   ChevronDown,
-  CupSoda,
   Eye,
   EyeOff,
-  Fish,
-  IceCreamBowl,
   MapPin,
   Pencil,
   Phone,
@@ -19,16 +15,6 @@ import {
   Utensils,
   X
 } from "./icons.js";
-
-const categoryIcons = {
-  peixes: Fish,
-  peixe: Fish,
-  porcoes: Utensils,
-  porções: Utensils,
-  bebidas: CupSoda,
-  sobremesas: IceCreamBowl,
-  carnes: Beef
-};
 
 function normalize(value) {
   return value
@@ -128,7 +114,6 @@ export function MenuShell({
       <section className="paper">
         <nav className="category-tabs" aria-label="Categorias do cardapio">
           {categories.map(category => {
-            const Icon = categoryIcons[normalize(category)] || Utensils;
             const active = category === selectedCategory;
             return (
               <button
@@ -137,7 +122,6 @@ export function MenuShell({
                 className={`category-tab ${active ? "active" : ""}`}
                 onClick={() => scrollToCategory(category)}
               >
-                <Icon size={20} />
                 <span>{category}</span>
               </button>
             );
@@ -179,10 +163,6 @@ export function MenuShell({
           <section className="menu-section" id={`category-${normalize(category)}`} key={category}>
             <div className="section-title-row">
               <div className="wood-title">
-                {(() => {
-                  const Icon = categoryIcons[normalize(category)] || Utensils;
-                  return <Icon size={24} />;
-                })()}
                 <h2>{category}</h2>
               </div>
               <div className="ornament" aria-hidden="true" />
@@ -215,8 +195,10 @@ export function MenuShell({
 }
 
 function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onToggleStatus }) {
+  const hasImage = Boolean(product.imageUrl);
+
   return (
-    <article className={`product-card ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""}`}>
+    <article className={`product-card ${hasImage ? "has-image" : ""} ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""}`}>
       <div className="product-copy">
         <div className="product-title-row">
           <h3>{product.nome}</h3>
@@ -226,9 +208,9 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
         <strong>{formatCurrency(product.preco)}</strong>
       </div>
 
-      <div className="product-image-wrap">
+      {hasImage && (
         <ProductImage imageUrl={product.imageUrl} name={product.nome} />
-      </div>
+      )}
 
       {isAdmin && (
         <div className="product-actions" aria-label={`Acoes de ${product.nome}`}>
@@ -288,14 +270,14 @@ function ProductImage({ imageUrl, name }) {
   }, [resolvedImageUrl]);
 
   if (!resolvedImageUrl || failed) {
-    return (
-      <div className="image-placeholder">
-        <Utensils size={28} />
-      </div>
-    );
+    return null;
   }
 
-  return <img src={resolvedImageUrl} alt={name} loading="lazy" onError={() => setFailed(true)} />;
+  return (
+    <div className="product-image-wrap">
+      <img src={resolvedImageUrl} alt={name} loading="lazy" onError={() => setFailed(true)} />
+    </div>
+  );
 }
 
 function StatePanel({ title, tone = "neutral" }) {
