@@ -44,10 +44,12 @@ function groupByCategory(products, includeUnavailable) {
     .filter(product => includeUnavailable || product.ativo)
     .reduce((groups, product) => {
       const category = product.categoria || "Cardapio";
-      if (!groups.has(category)) {
-        groups.set(category, []);
+      let list = groups.get(category);
+      if (!list) {
+        list = [];
+        groups.set(category, list);
       }
-      groups.get(category).push(product);
+      list.push(product);
       return groups;
     }, new Map());
 }
