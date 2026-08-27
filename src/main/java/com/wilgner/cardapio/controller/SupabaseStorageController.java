@@ -5,6 +5,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import reactor.core.publisher.Mono;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/painel/storage")
@@ -20,8 +23,7 @@ public class SupabaseStorageController {
             value = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) throws Exception {
-        String url = storageService.uploadFile(file);
-        return ResponseEntity.ok(url);
+    public Mono<ResponseEntity<String>> upload(@RequestParam("file") MultipartFile file) throws IOException {
+        return storageService.uploadFile(file).map(ResponseEntity::ok);
     }
 }

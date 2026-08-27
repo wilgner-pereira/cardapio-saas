@@ -5,12 +5,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
@@ -24,7 +26,7 @@ public class SupabaseStorageService {
             MediaType.IMAGE_GIF_VALUE
     );
 
-    private final RestClient restClient;
+    private final WebClient webClient;
 
     @Value("${supabase.url}")
     private String projectUrl;
@@ -35,11 +37,11 @@ public class SupabaseStorageService {
     @Value("${supabase.bucket}")
     private String bucket;
 
-    public SupabaseStorageService(RestClient.Builder restClientBuilder) {
-        this.restClient = restClientBuilder.build();
+    public SupabaseStorageService(WebClient.Builder webClientBuilder) {
+        this.webClient = webClientBuilder.build();
     }
 
-    public String uploadFile(MultipartFile file) throws Exception {
+    public Mono<String> uploadFile(MultipartFile file) throws IOException {
 
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Arquivo vazio");
@@ -77,28 +79,35 @@ public class SupabaseStorageService {
                         + "/"
                         + fileName;
 
-        restClient.put()
-                .uri(uploadUrl)
-                .contentType(MediaType.parseMediaType(file.getContentType()))
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                .header("apikey", apiKey)
-                .body(bytes)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, (request, response) -> {
-                    throw new ExternalServiceException(
-                            "Falha ao enviar imagem para o storage"
-                    );
-                })
-                .body(String.class);
-
-        return projectUrl
+        String publicUrl = projectUrl
                 + "/storage/v1/object/public/"
                 + bucket
                 + "/"
                 + fileName;
+
+        return webClient.put()
+                .uri(uploadUrl)
+                .contentType(MediaType.parseMediaType(file.getContentType()))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .header("apikey", apiKey)
+                .bodyValue(bytes)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, response ->
+                        response.createException()
+                                .map(ex -> new ExternalServiceException(
+                                        "Falha ao enviar imagem para o storage",
+                                        ex
+                                ))
+                )
+                .bodyToMono(Void.class)
+                .timeout(Duration.ofMinutes(2))
+                .onErrorMap(ex -> ex instanceof ExternalServiceException
+                        ? ex
+                        : new ExternalServiceException("Falha ao enviar imagem para o storage", ex))
+                .thenReturn(publicUrl);
     }
 
-    public StoredFile downloadFile(String fileName) {
+    public Mono<StoredFile> downloadFile(String fileName) {
 
         if (fileName == null
                 || fileName.isBlank()
@@ -119,33 +128,36 @@ public class SupabaseStorageService {
                 .build()
                 .toUriString();
 
-        ResponseEntity<byte[]> response = restClient.get()
+        return webClient.get()
                 .uri(downloadUrl)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .header("apikey", apiKey)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, (request, res) -> {
-                    throw new ExternalServiceException(
-                            "Falha ao buscar imagem no storage"
+                .onStatus(HttpStatusCode::isError, response ->
+                        response.createException()
+                                .map(ex -> new ExternalServiceException(
+                                        "Falha ao buscar imagem no storage",
+                                        ex
+                                ))
+                )
+                .toEntity(byte[].class)
+                .timeout(Duration.ofMinutes(2))
+                .onErrorMap(ex -> ex instanceof ExternalServiceException
+                        ? ex
+                        : new ExternalServiceException("Falha ao buscar imagem no storage", ex))
+                .map(response -> {
+                    if (response.getBody() == null) {
+                        throw new ExternalServiceException("Imagem não encontrada no storage");
+                    }
+
+                    MediaType contentType = response.getHeaders().getContentType();
+                    return new StoredFile(
+                            response.getBody(),
+                            contentType != null
+                                    ? contentType
+                                    : MediaType.APPLICATION_OCTET_STREAM
                     );
-                })
-                .toEntity(byte[].class);
-
-        if (response.getBody() == null) {
-            throw new ExternalServiceException(
-                    "Imagem não encontrada no storage"
-            );
-        }
-
-        MediaType contentType =
-                response.getHeaders().getContentType();
-
-        return new StoredFile(
-                response.getBody(),
-                contentType != null
-                        ? contentType
-                        : MediaType.APPLICATION_OCTET_STREAM
-        );
+                });
     }
 
     private boolean isValidImageMagicBytes(byte[] bytes) {

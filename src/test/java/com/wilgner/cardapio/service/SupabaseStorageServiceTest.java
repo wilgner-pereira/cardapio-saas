@@ -1,11 +1,10 @@
 package com.wilgner.cardapio.service;
 
-import com.wilgner.cardapio.exception.ExternalServiceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,7 +15,7 @@ public class SupabaseStorageServiceTest {
 
     @BeforeEach
     public void setup() throws Exception {
-        RestClient.Builder builder = RestClient.builder();
+        WebClient.Builder builder = WebClient.builder();
         service = new SupabaseStorageService(builder);
 
         // Inject properties

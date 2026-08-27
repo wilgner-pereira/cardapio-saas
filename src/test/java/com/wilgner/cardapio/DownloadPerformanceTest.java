@@ -1,30 +1,35 @@
 package com.wilgner.cardapio;
 
+import com.wilgner.cardapio.service.SupabaseStorageService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
-        "server.tomcat.threads.max=20",
+        "server.tomcat.threads.max=4",
+        "server.tomcat.threads.min-spare=4",
         "supabase.bucket=test-bucket",
         "supabase.key=dummy",
         "JWT_SECRET=dummy_dummy_dummy_dummy_dummy_dummy",
@@ -38,18 +43,17 @@ public class DownloadPerformanceTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
-    @DynamicPropertySource
-    static void dynamicProperties(DynamicPropertyRegistry registry) {
-        registry.add("supabase.url", () -> "http://localhost:8080"); // We will just mock the property here to pass context load
-    }
+    @MockBean
+    private SupabaseStorageService storageService;
 
-    @RestController
-    static class MockSupabaseController {
-        @GetMapping("/storage/v1/object/test-bucket/test.png")
-        public Mono<ResponseEntity<byte[]>> mockDownload() {
-            return Mono.delay(Duration.ofMillis(200))
-                    .map(it -> ResponseEntity.ok(new byte[]{1, 2, 3, 4}));
-        }
+    @BeforeEach
+    void configureStorage() {
+        when(storageService.downloadFile("test.png"))
+                .thenReturn(Mono.delay(Duration.ofMillis(200))
+                        .map(ignored -> new SupabaseStorageService.StoredFile(
+                                new byte[]{1, 2, 3, 4},
+                                org.springframework.http.MediaType.IMAGE_PNG
+                        )));
     }
 
     @Test
@@ -59,10 +63,6 @@ public class DownloadPerformanceTest {
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         CountDownLatch latch = new CountDownLatch(numRequests);
         AtomicInteger successCount = new AtomicInteger();
-
-        // Overriding the mocked URL to actually point to our local mock controller
-        String actualMockUrl = "http://localhost:" + port;
-        System.setProperty("supabase.url", actualMockUrl);
 
         long startTime = System.currentTimeMillis();
 
@@ -81,9 +81,12 @@ public class DownloadPerformanceTest {
             });
         }
 
-        latch.await();
+        assertTrue(latch.await(5, TimeUnit.SECONDS), "As requisições não terminaram dentro do limite");
+        executor.shutdownNow();
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
+
+        assertEquals(numRequests, successCount.get(), "Todas as requisições devem retornar sucesso");
 
         System.out.println("====================================================");
         System.out.println("Total time for " + numRequests + " concurrent requests: " + duration + " ms");
