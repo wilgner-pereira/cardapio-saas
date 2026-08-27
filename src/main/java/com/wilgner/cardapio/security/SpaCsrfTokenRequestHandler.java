@@ -9,6 +9,7 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
 import org.springframework.util.StringUtils;
+import com.wilgner.cardapio.util.LogSanitizer;
 
 import java.util.function.Supplier;
 
@@ -37,8 +38,8 @@ public final class SpaCsrfTokenRequestHandler implements CsrfTokenRequestHandler
         CsrfTokenRequestHandler delegate = tokenCameFromHeader ? plain : xor;
 
         log.debug("Resolvendo CSRF metodo={} uri={} origem={}",
-                request.getMethod(),
-                request.getRequestURI(),
+                LogSanitizer.sanitize(request.getMethod()),
+                LogSanitizer.sanitize(request.getRequestURI()),
                 tokenCameFromHeader ? "header-spa" : "parametro-xor");
 
         return delegate.resolveCsrfTokenValue(request, csrfToken);
