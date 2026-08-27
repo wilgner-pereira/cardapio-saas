@@ -364,18 +364,27 @@ function AdminMenuPage() {
       return;
     }
 
-    const sameCategory = products.filter(item => item.categoria === product.categoria);
-    const currentIndex = sameCategory.findIndex(item => item.id === product.id);
-    const targetIndex = currentIndex + direction;
+    const globalIndex = products.findIndex(item => item.id === product.id);
+    if (globalIndex < 0) return;
 
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sameCategory.length) {
+    const targetGlobalIndex = globalIndex + direction;
+    const target = products[targetGlobalIndex];
+
+    if (!target || target.categoria !== product.categoria) {
       return;
     }
 
-    const target = sameCategory[targetIndex];
     if (target._pending) {
       return;
     }
+
+    let categoryStartIndex = globalIndex;
+    while (categoryStartIndex > 0 && products[categoryStartIndex - 1].categoria === product.categoria) {
+      categoryStartIndex--;
+    }
+
+    const currentIndex = globalIndex - categoryStartIndex;
+    const targetIndex = targetGlobalIndex - categoryStartIndex;
 
     setActionError("");
 
