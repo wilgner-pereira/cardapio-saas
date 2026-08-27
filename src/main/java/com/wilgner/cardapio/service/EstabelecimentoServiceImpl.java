@@ -29,24 +29,14 @@ public class EstabelecimentoServiceImpl {
 
     @Transactional
     public EstabelecimentoResponseDTO obterMeuEstabelecimento() {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
-
-        if (estabelecimento == null) {
-            throw new ResourceNotFoundException("Estabelecimento não encontrado");
-        }
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
 
         return estabelecimentoMapper.toDTO(estabelecimento);
     }
 
     @Transactional
     public EstabelecimentoResponseDTO atualizarMeuEstabelecimento(EstabelecimentoUpdateRequestDTO dto) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
-
-        if (estabelecimento == null) {
-            throw new ResourceNotFoundException("Estabelecimento não encontrado");
-        }
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
 
         estabelecimentoMapper.updateEntity(dto, estabelecimento);
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
@@ -56,17 +46,22 @@ public class EstabelecimentoServiceImpl {
 
     @Transactional
     public EstabelecimentoResponseDTO atualizarLogo(String logoUrl) {
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
+
+        estabelecimento.setLogoUrl(logoUrl);
+        Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
+
+        return estabelecimentoMapper.toDTO(atualizado);
+    }
+
+    private Estabelecimento getEstabelecimentoAutenticado() {
         Usuario usuario = getUsuarioAutenticado();
         Estabelecimento estabelecimento = usuario.getEstabelecimento();
 
         if (estabelecimento == null) {
             throw new ResourceNotFoundException("Estabelecimento não encontrado");
         }
-
-        estabelecimento.setLogoUrl(logoUrl);
-        Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
-
-        return estabelecimentoMapper.toDTO(atualizado);
+        return estabelecimento;
     }
 
     private Usuario getUsuarioAutenticado() {
