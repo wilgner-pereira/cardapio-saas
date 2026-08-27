@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeUnit;
 
@@ -21,12 +22,11 @@ public class PublicStorageController {
     }
 
     @GetMapping("/{fileName:.+}")
-    public ResponseEntity<byte[]> download(@PathVariable String fileName) {
-        SupabaseStorageService.StoredFile file = storageService.downloadFile(fileName);
-
-        return ResponseEntity.ok()
-                .contentType(file.contentType())
-                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
-                .body(file.bytes());
+    public Mono<ResponseEntity<byte[]>> download(@PathVariable String fileName) {
+        return storageService.downloadFile(fileName)
+                .map(file -> ResponseEntity.ok()
+                        .contentType(file.contentType())
+                        .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                        .body(file.bytes()));
     }
 }
