@@ -49,8 +49,7 @@ public class AdminProdutoServiceImpl {
 
     @Transactional
     public ProdutoResponseDTO atualizarProduto(ProdutoRequestDTO produtoRequestDTO, Long produtoId) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
 
         produto.setNome(produtoRequestDTO.nome().trim());
@@ -65,8 +64,7 @@ public class AdminProdutoServiceImpl {
 
     @Transactional
     public void deleteProduto(Long produtoId) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
 
         produtoRepository.delete(produto);
@@ -74,8 +72,7 @@ public class AdminProdutoServiceImpl {
 
     @Transactional
     public ProdutoResponseDTO atualizarStatus(Long produtoId, boolean ativo) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
         produto.setAtivo(ativo);
         return produtoMapper.toDTO(produtoRepository.save(produto));
@@ -83,16 +80,14 @@ public class AdminProdutoServiceImpl {
 
     @Transactional
     public ProdutoResponseDTO pesquisarProdutoPorId(Long produtoId) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
         return produtoMapper.toDTO(produto);
     }
 
     @Transactional
     public List<ProdutoResponseDTO> listarProdutoDinamico(String categoria) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
 
         if (StringUtils.hasText(categoria)) {
             List<Produto> produtos = produtoRepository.findByEstabelecimentoAndCategoria(estabelecimento, categoria.trim());
@@ -103,8 +98,7 @@ public class AdminProdutoServiceImpl {
 
     @Transactional
     public ProdutoResponseDTO atualizarOrdem(Long produtoId, Integer novaOrdem) {
-        Usuario usuario = getUsuarioAutenticado();
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
 
         produto.setOrdem(novaOrdem);
@@ -114,6 +108,10 @@ public class AdminProdutoServiceImpl {
     private Integer proximaOrdem(Estabelecimento estabelecimento, String categoria) {
         Integer maiorOrdem = produtoRepository.findMaiorOrdemPorCategoria(estabelecimento, categoria);
         return maiorOrdem + 1;
+    }
+
+    private Estabelecimento getEstabelecimentoAutenticado() {
+        return getUsuarioAutenticado().getEstabelecimento();
     }
 
     private Usuario getUsuarioAutenticado() {
