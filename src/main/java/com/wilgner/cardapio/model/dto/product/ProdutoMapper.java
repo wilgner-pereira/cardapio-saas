@@ -20,7 +20,8 @@ public class ProdutoMapper {
                 produto.getCategoria(),
                 produto.getImagemUrl(),
                 produto.isAtivo(),
-                produto.getOrdem()
+                produto.getOrdem(),
+                produto.getCategoriaOrdem()
         );
     }
 

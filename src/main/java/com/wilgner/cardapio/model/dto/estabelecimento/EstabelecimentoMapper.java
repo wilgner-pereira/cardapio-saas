@@ -23,6 +23,7 @@ public class EstabelecimentoMapper {
                 estabelecimento.getEndereco(),
                 estabelecimento.getEmailContato(),
                 estabelecimento.getLogoUrl(),
+                estabelecimento.getTema(),
                 estabelecimento.getAtivo(),
                 estabelecimento.getCriadoEm(),
                 estabelecimento.getAtualizadoEm()
@@ -41,6 +42,7 @@ public class EstabelecimentoMapper {
                 estabelecimento.getDescricao(),
                 estabelecimento.getEndereco(),
                 estabelecimento.getLogoUrl(),
+                estabelecimento.getTema(),
                 estabelecimento.getAtivo()
         );
     }

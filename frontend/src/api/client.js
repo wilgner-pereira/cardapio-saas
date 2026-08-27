@@ -44,7 +44,7 @@ function resolveImageUrl(url) {
     return `${API_BASE}${url}`;
   }
 
-  const supabaseFile = url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+  const supabaseFile = url.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)$/);
   if (supabaseFile?.[1]) {
     return `${API_BASE}/public/storage/${encodeURIComponent(decodeURIComponent(supabaseFile[1]))}`;
   }
@@ -223,6 +223,12 @@ export const api = {
     });
   },
 
+  async updateMyEstablishmentTheme(tema) {
+    return request(`/painel/estabelecimento/tema?tema=${encodeURIComponent(tema)}`, {
+      method: "PUT"
+    });
+  },
+
   async createProduct(payload) {
     return request("/painel/produtos", {
       method: "POST",
@@ -248,6 +254,13 @@ export const api = {
     return request(`/painel/produtos/${id}/ordem`, {
       method: "PATCH",
       body: { ordem }
+    });
+  },
+
+  async updateCategoryOrder(categoria, categoriaAlvo) {
+    return request("/painel/categorias/ordem", {
+      method: "PATCH",
+      body: { categoria, categoriaAlvo }
     });
   },
 

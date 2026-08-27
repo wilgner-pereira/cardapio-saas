@@ -56,6 +56,11 @@ public class ApiExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorDTO> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorDTO> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, "Registro duplicado ou violação de integridade", request);

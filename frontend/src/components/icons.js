@@ -1,6 +1,7 @@
 export { default as ArrowDown } from "lucide-react/dist/esm/icons/arrow-down.js";
 export { default as ArrowUp } from "lucide-react/dist/esm/icons/arrow-up.js";
 export { default as Beef } from "lucide-react/dist/esm/icons/beef.js";
+export { default as Check } from "lucide-react/dist/esm/icons/check.js";
 export { default as ChevronDown } from "lucide-react/dist/esm/icons/chevron-down.js";
 export { default as CupSoda } from "lucide-react/dist/esm/icons/cup-soda.js";
 export { default as Eye } from "lucide-react/dist/esm/icons/eye.js";
@@ -11,6 +12,7 @@ export { default as ImagePlus } from "lucide-react/dist/esm/icons/image-plus.js"
 export { default as Loader2 } from "lucide-react/dist/esm/icons/loader-2.js";
 export { default as Lock } from "lucide-react/dist/esm/icons/lock.js";
 export { default as MapPin } from "lucide-react/dist/esm/icons/map-pin.js";
+export { default as Palette } from "lucide-react/dist/esm/icons/palette.js";
 export { default as Pencil } from "lucide-react/dist/esm/icons/pencil.js";
 export { default as Phone } from "lucide-react/dist/esm/icons/phone.js";
 export { default as Plus } from "lucide-react/dist/esm/icons/plus.js";

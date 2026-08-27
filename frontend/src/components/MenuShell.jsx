@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   MapPin,
+  Palette,
   Pencil,
   Phone,
   Plus,
@@ -63,18 +64,21 @@ export function MenuShell({
   username,
   establishment,
   products,
+  theme,
   mode = "public",
   loading = false,
   error = "",
   actionError = "",
   onCreate,
   onEdit,
+  onEditTheme,
   onEditEstablishment,
   onDelete,
   onMoveProduct,
   onToggleStatus,
   onRefresh,
-  onLogout
+  onLogout,
+  themeButtonRef
 }) {
   const [activeCategory, setActiveCategory] = useState("");
   const isAdmin = mode === "admin";
@@ -83,6 +87,14 @@ export function MenuShell({
   const grouped = useMemo(() => groupByCategory(products, isAdmin), [isAdmin, products]);
   const categories = Array.from(grouped.keys());
   const selectedCategory = activeCategory && grouped.has(activeCategory) ? activeCategory : categories[0];
+  const effectiveTheme = theme || establishment?.tema || "artesanal";
+
+  useEffect(() => {
+    document.body.setAttribute("data-theme", effectiveTheme);
+    return () => {
+      document.body.removeAttribute("data-theme");
+    };
+  }, [effectiveTheme]);
 
   function scrollToCategory(category) {
     setActiveCategory(category);
@@ -93,10 +105,20 @@ export function MenuShell({
   }
 
   return (
-    <main className="menu-page">
+    <main className="menu-page" data-theme={effectiveTheme}>
       <section className="hero">
         {isAdmin && (
           <div className="admin-strip">
+            <button
+              ref={themeButtonRef}
+              className="icon-button"
+              type="button"
+              onClick={onEditTheme}
+              aria-label="Alterar tema do cardápio"
+              title="Alterar tema"
+            >
+              <Palette size={18} />
+            </button>
             <span>Editor</span>
             <button className="icon-button" type="button" onClick={onEditEstablishment} aria-label="Editar estabelecimento">
               <Pencil size={18} />

@@ -14,6 +14,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -39,9 +40,11 @@ public class AdminProdutoServiceImpl {
         produto.setNome(produtoRequestDTO.nome().trim());
         produto.setDescricao(produtoRequestDTO.descricao().trim());
         produto.setPreco(produtoRequestDTO.preco());
-        produto.setCategoria(produtoRequestDTO.categoria().trim());
+        String categoria = produtoRequestDTO.categoria().trim();
+        produto.setCategoria(categoria);
+        produto.setCategoriaOrdem(ordemDaCategoriaOuProxima(estabelecimento, categoria));
         produto.setImagemUrl(produtoRequestDTO.imageUrl());
-        produto.setOrdem(proximaOrdem(estabelecimento, produto.getCategoria()));
+        produto.setOrdem(proximaOrdem(estabelecimento, categoria));
 
         Produto salvo = produtoRepository.save(produto);
         return produtoMapper.toDTO(salvo);
@@ -51,11 +54,17 @@ public class AdminProdutoServiceImpl {
     public ProdutoResponseDTO atualizarProduto(ProdutoRequestDTO produtoRequestDTO, Long produtoId) {
         Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
+        String novaCategoria = produtoRequestDTO.categoria().trim();
+        boolean mudouDeCategoria = !produto.getCategoria().equals(novaCategoria);
 
         produto.setNome(produtoRequestDTO.nome().trim());
         produto.setDescricao(produtoRequestDTO.descricao().trim());
         produto.setPreco(produtoRequestDTO.preco());
-        produto.setCategoria(produtoRequestDTO.categoria().trim());
+        produto.setCategoria(novaCategoria);
+        produto.setCategoriaOrdem(ordemDaCategoriaOuProxima(estabelecimento, novaCategoria));
+        if (mudouDeCategoria) {
+            produto.setOrdem(proximaOrdem(estabelecimento, novaCategoria));
+        }
         produto.setImagemUrl(produtoRequestDTO.imageUrl());
 
         Produto salvo = produtoRepository.save(produto);
@@ -91,7 +100,7 @@ public class AdminProdutoServiceImpl {
 
         if (StringUtils.hasText(categoria)) {
             List<Produto> produtos = produtoRepository.findByEstabelecimentoAndCategoria(estabelecimento, categoria.trim());
-            return produtoMapper.toDTOList(produtos);
+            return ordenarEMapear(produtos);
         }
         return produtoMapper.toDTOList(produtoRepository.findByEstabelecimentoOrderByCategoriaAndOrdem(estabelecimento));
     }
@@ -105,9 +114,57 @@ public class AdminProdutoServiceImpl {
         return produtoMapper.toDTO(produtoRepository.save(produto));
     }
 
+    @Transactional
+    public List<ProdutoResponseDTO> trocarOrdemCategorias(String categoria, String categoriaAlvo) {
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
+        List<Produto> produtos = produtoRepository.findByEstabelecimento(estabelecimento);
+
+        Integer ordemCategoria = encontrarOrdemCategoria(produtos, categoria);
+        Integer ordemCategoriaAlvo = encontrarOrdemCategoria(produtos, categoriaAlvo);
+
+        if (categoria.equals(categoriaAlvo)) {
+            return ordenarEMapear(produtos);
+        }
+
+        produtos.forEach(produto -> {
+            if (produto.getCategoria().equals(categoria)) {
+                produto.setCategoriaOrdem(ordemCategoriaAlvo);
+            } else if (produto.getCategoria().equals(categoriaAlvo)) {
+                produto.setCategoriaOrdem(ordemCategoria);
+            }
+        });
+
+        produtoRepository.saveAll(produtos);
+        return ordenarEMapear(produtos);
+    }
+
     private Integer proximaOrdem(Estabelecimento estabelecimento, String categoria) {
         Integer maiorOrdem = produtoRepository.findMaiorOrdemPorCategoria(estabelecimento, categoria);
         return maiorOrdem + 1;
+    }
+
+    private Integer ordemDaCategoriaOuProxima(Estabelecimento estabelecimento, String categoria) {
+        Integer ordemExistente = produtoRepository.findOrdemDaCategoria(estabelecimento, categoria);
+        return ordemExistente != null
+                ? ordemExistente
+                : produtoRepository.findMaiorOrdemDeCategoria(estabelecimento) + 1;
+    }
+
+    private Integer encontrarOrdemCategoria(List<Produto> produtos, String categoria) {
+        return produtos.stream()
+                .filter(produto -> produto.getCategoria().equals(categoria))
+                .map(Produto::getCategoriaOrdem)
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
+    }
+
+    private List<ProdutoResponseDTO> ordenarEMapear(List<Produto> produtos) {
+        return produtoMapper.toDTOList(produtos.stream()
+                .sorted(Comparator.comparing(Produto::getCategoriaOrdem)
+                        .thenComparing(Produto::getCategoria)
+                        .thenComparing(Produto::getOrdem)
+                        .thenComparing(Produto::getId))
+                .toList());
     }
 
     private Estabelecimento getEstabelecimentoAutenticado() {

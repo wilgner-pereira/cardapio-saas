@@ -10,6 +10,7 @@ public record ProdutoResponseDTO(
         String categoria,
         String imageUrl,
         boolean ativo,
-        Integer ordem
+        Integer ordem,
+        Integer categoriaOrdem
 ) {
 }

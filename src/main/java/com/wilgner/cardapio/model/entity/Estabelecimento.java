@@ -37,6 +37,9 @@ public class Estabelecimento {
     @Column(name = "logo_url", length = 2048)
     private String logoUrl;
 
+    @Column(nullable = false, length = 20)
+    private String tema = "artesanal";
+
     @Column(nullable = false)
     private Boolean ativo = true;
 
@@ -136,6 +139,14 @@ public class Estabelecimento {
         this.logoUrl = logoUrl;
     }
 
+    public String getTema() {
+        return tema;
+    }
+
+    public void setTema(String tema) {
+        this.tema = tema;
+    }
+
     public Boolean getAtivo() {
         return ativo;
     }
@@ -188,7 +199,7 @@ public class Estabelecimento {
     }
 
     public Estabelecimento(Long id, String nome, String slug, String descricao, String horarioFuncionamento,
-                           String telefone, String endereco, String emailContato, String logoUrl, Boolean ativo,
+                           String telefone, String endereco, String emailContato, String logoUrl, String tema, Boolean ativo,
                            LocalDateTime criadoEm, LocalDateTime atualizadoEm) {
         this.id = id;
         this.nome = nome;
@@ -199,6 +210,7 @@ public class Estabelecimento {
         this.endereco = endereco;
         this.emailContato = emailContato;
         this.logoUrl = logoUrl;
+        this.tema = tema;
         this.ativo = ativo;
         this.criadoEm = criadoEm;
         this.atualizadoEm = atualizadoEm;

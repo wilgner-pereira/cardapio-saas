@@ -8,6 +8,7 @@ public record EstabelecimentoResumoDTO(
         String descricao,
         String endereco,
         String logoUrl,
+        String tema,
         Boolean ativo
 ) {
 }

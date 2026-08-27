@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { Loader2, Lock, Plus } from "./components/icons.js";
 import { EstablishmentEditorModal } from "./components/EstablishmentEditorModal.jsx";
 import { MenuShell } from "./components/MenuShell.jsx";
 import { ProductEditorModal } from "./components/ProductEditorModal.jsx";
+import { ThemePickerModal } from "./components/ThemePickerModal.jsx";
 
 function getPath() {
   return window.location.pathname;
@@ -143,8 +144,14 @@ function AdminMenuPage() {
   const [actionError, setActionError] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
   const [establishment, setEstablishment] = useState(null);
+  const [previewTheme, setPreviewTheme] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [establishmentModalOpen, setEstablishmentModalOpen] = useState(false);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
+  const themeButtonRef = useRef(null);
+
+  const savedTheme = establishment?.tema || "artesanal";
+  const effectiveTheme = previewTheme ?? savedTheme;
 
   const applyAdminSnapshot = useCallback((nextProducts, nextEstablishment) => {
     setProducts(nextProducts);
@@ -445,6 +452,7 @@ function AdminMenuPage() {
       <MenuShell
         username={establishment?.slug || auth.estabelecimentoSlug || auth.username || "meu-cardapio"}
         establishment={establishment}
+        theme={effectiveTheme}
         mode="admin"
         products={products}
         loading={loading}
@@ -458,12 +466,17 @@ function AdminMenuPage() {
           setEditingProduct(product);
           setModalOpen(true);
         }}
+        onEditTheme={() => {
+          setPreviewTheme(null);
+          setThemeModalOpen(true);
+        }}
         onEditEstablishment={() => setEstablishmentModalOpen(true)}
         onDelete={handleDelete}
         onMoveProduct={handleMoveProduct}
         onToggleStatus={handleToggleStatus}
         onRefresh={() => loadAdminData()}
         onLogout={handleLogout}
+        themeButtonRef={themeButtonRef}
       />
 
       <button
@@ -494,6 +507,33 @@ function AdminMenuPage() {
           establishment={establishment}
           onClose={() => setEstablishmentModalOpen(false)}
           onSubmit={handleEstablishmentSubmit}
+        />
+      )}
+
+      {themeModalOpen && (
+        <ThemePickerModal
+          isOpen={themeModalOpen}
+          currentTheme={savedTheme}
+          onSelectPreview={(themeId) => setPreviewTheme(themeId)}
+          onClose={() => {
+            setPreviewTheme(null);
+            setThemeModalOpen(false);
+          }}
+          onSubmit={async (selectedTheme) => {
+            const previousTheme = savedTheme;
+            setEstablishment(current => ({ ...current, tema: selectedTheme }));
+            setPreviewTheme(null);
+            try {
+              const updated = await api.updateMyEstablishmentTheme(selectedTheme);
+              setEstablishment(updated);
+              setThemeModalOpen(false);
+            } catch (err) {
+              setEstablishment(current => ({ ...current, tema: previousTheme }));
+              setPreviewTheme(selectedTheme);
+              throw err;
+            }
+          }}
+          triggerRef={themeButtonRef}
         />
       )}
     </>

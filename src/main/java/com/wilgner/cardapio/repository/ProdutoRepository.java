@@ -19,10 +19,10 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
     List<Produto> findByEstabelecimentoAndCategoria(Estabelecimento estabelecimento, String categoria);
     List<Produto> findByEstabelecimentoAndCategoriaAndAtivo(Estabelecimento estabelecimento, String categoria, Boolean ativo);
 
-    @Query("SELECT p FROM Produto p WHERE p.estabelecimento = :estabelecimento ORDER BY p.categoria ASC, p.ordem ASC, p.id ASC")
+    @Query("SELECT p FROM Produto p WHERE p.estabelecimento = :estabelecimento ORDER BY p.categoriaOrdem ASC, p.categoria ASC, p.ordem ASC, p.id ASC")
     List<Produto> findByEstabelecimentoOrderByCategoriaAndOrdem(@Param("estabelecimento") Estabelecimento estabelecimento);
 
-    @Query("SELECT p FROM Produto p WHERE p.estabelecimento = :estabelecimento AND p.ativo = true ORDER BY p.categoria ASC, p.ordem ASC, p.id ASC")
+    @Query("SELECT p FROM Produto p WHERE p.estabelecimento = :estabelecimento AND p.ativo = true ORDER BY p.categoriaOrdem ASC, p.categoria ASC, p.ordem ASC, p.id ASC")
     List<Produto> findByEstabelecimentoAtivoOrderByCategoriaAndOrdem(@Param("estabelecimento") Estabelecimento estabelecimento);
 
     @Query("SELECT p FROM Produto p WHERE p.estabelecimento = :estabelecimento AND p.categoria = :categoria AND p.ativo = true ORDER BY p.ordem ASC, p.id ASC")
@@ -30,6 +30,12 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
 
     @Query("SELECT COALESCE(MAX(p.ordem), -1) FROM Produto p WHERE p.estabelecimento = :estabelecimento AND p.categoria = :categoria")
     Integer findMaiorOrdemPorCategoria(@Param("estabelecimento") Estabelecimento estabelecimento, @Param("categoria") String categoria);
+
+    @Query("SELECT MIN(p.categoriaOrdem) FROM Produto p WHERE p.estabelecimento = :estabelecimento AND p.categoria = :categoria")
+    Integer findOrdemDaCategoria(@Param("estabelecimento") Estabelecimento estabelecimento, @Param("categoria") String categoria);
+
+    @Query("SELECT COALESCE(MAX(p.categoriaOrdem), -1) FROM Produto p WHERE p.estabelecimento = :estabelecimento")
+    Integer findMaiorOrdemDeCategoria(@Param("estabelecimento") Estabelecimento estabelecimento);
 
     // Por usuário (para compatibilidade com código antigo)
     Optional<Produto> findByUsuarioAndId(Usuario usuario, Long id);

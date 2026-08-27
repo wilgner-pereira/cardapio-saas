@@ -1,3 +1,4 @@
+
 package com.wilgner.cardapio;
 
 import jakarta.servlet.http.Cookie;
@@ -19,6 +20,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -159,6 +161,123 @@ class CardapioApplicationTests {
                 .andExpect(jsonPath("$", hasSize(0)));
     }
 
+    @Test
+    void categoryOrderChangesWithoutChangingProductOrderInsideCategory() throws Exception {
+        String username = uniqueUsername("categorias");
+        Cookie[] cookies = registerAndLogin(username);
+
+        createProduct(cookies, "Entrada A", "Entradas");
+        createProduct(cookies, "Entrada B", "Entradas");
+        createProduct(cookies, "Bebida A", "Bebidas");
+
+        mockMvc.perform(patch("/painel/categorias/ordem")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "categoria": "Bebidas",
+                                  "categoriaAlvo": "Entradas"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].categoria").value("Bebidas"))
+                .andExpect(jsonPath("$[0].categoriaOrdem").value(0))
+                .andExpect(jsonPath("$[0].ordem").value(0))
+                .andExpect(jsonPath("$[1].categoria").value("Entradas"))
+                .andExpect(jsonPath("$[1].nome").value("Entrada A"))
+                .andExpect(jsonPath("$[1].ordem").value(0))
+                .andExpect(jsonPath("$[2].nome").value("Entrada B"))
+                .andExpect(jsonPath("$[2].ordem").value(1));
+
+        mockMvc.perform(get("/painel/produtos").cookie(cookies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].categoria").value("Bebidas"))
+                .andExpect(jsonPath("$[1].nome").value("Entrada A"))
+                .andExpect(jsonPath("$[2].nome").value("Entrada B"));
+
+        mockMvc.perform(get("/public/{username}/cardapio", username))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].categoria").value("Bebidas"))
+                .andExpect(jsonPath("$[1].nome").value("Entrada A"))
+                .andExpect(jsonPath("$[2].nome").value("Entrada B"));
+    }
+
+    @Test
+    void establishmentThemeDefaultsToArtesanalAndCanBeUpdatedToAllValidThemes() throws Exception {
+        String username = uniqueUsername("tema");
+        Cookie[] cookies = registerAndLogin(username);
+
+        // Verifica que o tema padrão retornado no admin é 'artesanal'
+        mockMvc.perform(get("/painel/estabelecimento").cookie(cookies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("artesanal"));
+
+        // Verifica que o tema padrão retornado no cardápio público é 'artesanal'
+        mockMvc.perform(get("/public/{slug}/cardapio/info", username))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("artesanal"));
+
+        // Atualiza para 'brasa'
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .param("tema", "brasa"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("brasa"));
+
+        // Verifica persistência no cardápio público
+        mockMvc.perform(get("/public/{slug}/cardapio/info", username))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("brasa"));
+
+        // Atualiza para 'atlantico'
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .param("tema", "atlantico"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("atlantico"));
+
+        // Atualiza para 'vinho'
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .param("tema", "vinho"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("vinho"));
+
+        // Atualiza para 'grafite'
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .param("tema", "grafite"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tema").value("grafite"));
+
+        // Rejeita tema inválido com 400
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .param("tema", "invalido"))
+                .andExpect(status().isBadRequest());
+
+        // Rejeita tema vazio com 400
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .param("tema", ""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unauthenticatedUserCannotUpdateTheme() throws Exception {
+        mockMvc.perform(put("/painel/estabelecimento/tema")
+                        .with(csrf())
+                        .param("tema", "brasa"))
+                .andExpect(status().isUnauthorized());
+    }
+
     private Cookie[] registerAndLogin(String username) throws Exception {
         register(username);
         MvcResult login = mockMvc.perform(post("/auth/login")
@@ -171,6 +290,23 @@ class CardapioApplicationTests {
                 login.getResponse().getCookie("access_token"),
                 login.getResponse().getCookie("refresh_token")
         };
+    }
+
+    private void createProduct(Cookie[] cookies, String nome, String categoria) throws Exception {
+        mockMvc.perform(post("/painel/produtos")
+                        .with(csrf())
+                        .cookie(cookies)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "nome": "%s",
+                                  "descricao": "Produto para teste de ordenação",
+                                  "preco": 10.00,
+                                  "categoria": "%s",
+                                  "imageUrl": ""
+                                }
+                                """.formatted(nome, categoria)))
+                .andExpect(status().isCreated());
     }
 
     private String registerAndLoginWithBearer(String username) throws Exception {

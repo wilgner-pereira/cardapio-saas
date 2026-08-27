@@ -5,6 +5,7 @@ import { MenuShell } from './MenuShell';
 describe('MenuShell', () => {
   beforeEach(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    document.body.removeAttribute('data-theme');
   });
 
   const mockProducts = [
@@ -45,6 +46,7 @@ describe('MenuShell', () => {
     const onRefresh = vi.fn();
     const onLogout = vi.fn();
     const onCreate = vi.fn();
+    const onEditTheme = vi.fn();
 
     render(
       <MenuShell
@@ -55,8 +57,12 @@ describe('MenuShell', () => {
         onRefresh={onRefresh}
         onLogout={onLogout}
         onCreate={onCreate}
+        onEditTheme={onEditTheme}
       />
     );
+
+    fireEvent.click(screen.getByLabelText('Alterar tema do cardápio'));
+    expect(onEditTheme).toHaveBeenCalled();
 
     fireEvent.click(screen.getByLabelText('Editar estabelecimento'));
     expect(onEditEstablishment).toHaveBeenCalled();
@@ -92,5 +98,47 @@ describe('MenuShell', () => {
     const deleteButtons = screen.getAllByLabelText('Remover produto');
     fireEvent.click(deleteButtons[1]);
     expect(onDelete).toHaveBeenCalledWith(mockProducts[1]);
+  });
+
+  it('applies data-theme attribute on menu-page and document.body', () => {
+    const { container } = render(
+      <MenuShell
+        username="test"
+        establishment={{ tema: 'brasa' }}
+        products={[]}
+      />
+    );
+
+    const menuPage = container.querySelector('.menu-page');
+    expect(menuPage).toHaveAttribute('data-theme', 'brasa');
+    expect(document.body).toHaveAttribute('data-theme', 'brasa');
+  });
+
+  it('falls back to artesanal when theme is not provided or empty', () => {
+    const { container } = render(
+      <MenuShell
+        username="test"
+        establishment={{ tema: null }}
+        products={[]}
+      />
+    );
+
+    const menuPage = container.querySelector('.menu-page');
+    expect(menuPage).toHaveAttribute('data-theme', 'artesanal');
+    expect(document.body).toHaveAttribute('data-theme', 'artesanal');
+  });
+
+  it('renders palette button only in admin mode as the first button in admin strip', () => {
+    const { rerender } = render(
+      <MenuShell username="test" products={[]} mode="public" />
+    );
+    expect(screen.queryByLabelText('Alterar tema do cardápio')).not.toBeInTheDocument();
+
+    rerender(
+      <MenuShell username="test" products={[]} mode="admin" />
+    );
+    const paletteBtn = screen.getByLabelText('Alterar tema do cardápio');
+    expect(paletteBtn).toBeInTheDocument();
+    expect(paletteBtn).toHaveAttribute('title', 'Alterar tema');
   });
 });

@@ -42,4 +42,11 @@ public class EstabelecimentoController {
         EstabelecimentoResponseDTO response = estabelecimentoService.atualizarLogo(logoUrl);
         return ResponseEntity.ok(response);
     }
+
+    @PutMapping("/tema")
+    public ResponseEntity<EstabelecimentoResponseDTO> atualizarTema(
+            @RequestParam @NotBlank @Size(max = 20) String tema) {
+        EstabelecimentoResponseDTO response = estabelecimentoService.atualizarTema(tema);
+        return ResponseEntity.ok(response);
+    }
 }

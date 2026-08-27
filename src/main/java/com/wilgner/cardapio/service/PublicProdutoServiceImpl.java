@@ -65,7 +65,8 @@ public class PublicProdutoServiceImpl {
                 estabelecimento.getHorarioFuncionamento(),
                 estabelecimento.getTelefone(),
                 estabelecimento.getEndereco(),
-                estabelecimento.getEmailContato()
+                estabelecimento.getEmailContato(),
+                estabelecimento.getTema()
         );
     }
 
@@ -76,6 +77,7 @@ public class PublicProdutoServiceImpl {
             String horarioFuncionamento,
             String telefone,
             String endereco,
-            String emailContato
+            String emailContato,
+            String tema
     ) {}
 }

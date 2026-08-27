@@ -1,0 +1,1 @@
+ALTER TABLE estabelecimento ADD COLUMN IF NOT EXISTS tema VARCHAR(20) NOT NULL DEFAULT 'artesanal';

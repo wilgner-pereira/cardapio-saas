@@ -11,6 +11,7 @@ import com.wilgner.cardapio.repository.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import com.wilgner.cardapio.model.entity.CardapioTema;
 
 @Service
 public class EstabelecimentoServiceImpl {
@@ -49,6 +50,17 @@ public class EstabelecimentoServiceImpl {
         Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
 
         estabelecimento.setLogoUrl(logoUrl);
+        Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
+
+        return estabelecimentoMapper.toDTO(atualizado);
+    }
+
+    @Transactional
+    public EstabelecimentoResponseDTO atualizarTema(String tema) {
+        CardapioTema temaValidado = CardapioTema.fromValor(tema);
+        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
+
+        estabelecimento.setTema(temaValidado.getValor());
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
 
         return estabelecimentoMapper.toDTO(atualizado);

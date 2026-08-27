@@ -27,6 +27,9 @@ public class Produto {
     @Column(nullable = false, length = 50)
     private String categoria;
 
+    @Column(name = "categoria_ordem", nullable = false)
+    private Integer categoriaOrdem = 0;
+
     @Column(name = "imagem_url", length = 2048)
     private String imagemUrl;
 
@@ -89,6 +92,14 @@ public class Produto {
         this.categoria = categoria;
     }
 
+    public Integer getCategoriaOrdem() {
+        return categoriaOrdem;
+    }
+
+    public void setCategoriaOrdem(Integer categoriaOrdem) {
+        this.categoriaOrdem = categoriaOrdem;
+    }
+
     public boolean isAtivo() {
         return ativo;
     }
@@ -125,7 +136,8 @@ public class Produto {
     }
 
     public Produto(Long id, String nome, String descricao, BigDecimal preco, boolean ativo, String categoria,
-                   String imagemUrl, Integer ordem, Estabelecimento estabelecimento, Usuario usuario) {
+                   String imagemUrl, Integer ordem, Integer categoriaOrdem,
+                   Estabelecimento estabelecimento, Usuario usuario) {
         this.id = id;
         this.nome = nome;
         this.descricao = descricao;
@@ -134,6 +146,7 @@ public class Produto {
         this.categoria = categoria;
         this.imagemUrl = imagemUrl;
         this.ordem = ordem;
+        this.categoriaOrdem = categoriaOrdem;
         this.estabelecimento = estabelecimento;
         this.usuario = usuario;
     }
