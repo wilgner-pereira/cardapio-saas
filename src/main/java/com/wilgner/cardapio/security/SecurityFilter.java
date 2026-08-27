@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.wilgner.cardapio.util.LogSanitizer;
 
 import java.io.IOException;
 
@@ -61,17 +62,17 @@ public class SecurityFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 log.debug("JWT de acesso autenticado para usuario={} metodo={} uri={}",
-                        username, request.getMethod(), request.getRequestURI());
+                        LogSanitizer.sanitize(username), LogSanitizer.sanitize(request.getMethod()), LogSanitizer.sanitize(request.getRequestURI()));
 
             } catch (Exception ex) {
                 log.debug("JWT de acesso rejeitado metodo={} uri={} motivo={}",
-                        request.getMethod(),
-                        request.getRequestURI(),
+                        LogSanitizer.sanitize(request.getMethod()),
+                        LogSanitizer.sanitize(request.getRequestURI()),
                         ex.getClass().getSimpleName());
             }
         } else {
             log.trace("Requisicao sem JWT de acesso metodo={} uri={}",
-                    request.getMethod(), request.getRequestURI());
+                    LogSanitizer.sanitize(request.getMethod()), LogSanitizer.sanitize(request.getRequestURI()));
         }
 
         filterChain.doFilter(request, response);

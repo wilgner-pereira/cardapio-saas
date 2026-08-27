@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import com.wilgner.cardapio.util.LogSanitizer;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -86,7 +88,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorDTO> handleUnexpected(Exception ex, HttpServletRequest request) {
-        log.error("Erro inesperado ao processar {}", request.getRequestURI(), ex);
+        log.error("Erro inesperado ao processar {}", LogSanitizer.sanitize(request.getRequestURI()), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno", request);
     }
 

@@ -14,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wilgner.cardapio.util.LogSanitizer;
 
 import java.io.IOException;
 
@@ -32,9 +33,9 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
             throws IOException, ServletException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         log.warn("Acesso negado metodo={} uri={} usuario={} autenticado={} motivo={}",
-                request.getMethod(),
-                request.getRequestURI(),
-                authentication != null ? authentication.getName() : "anonymous",
+                LogSanitizer.sanitize(request.getMethod()),
+                LogSanitizer.sanitize(request.getRequestURI()),
+                authentication != null ? LogSanitizer.sanitize(authentication.getName()) : "anonymous",
                 authentication != null && authentication.isAuthenticated(),
                 accessDeniedException.getClass().getSimpleName());
 
