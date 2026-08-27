@@ -59,6 +59,7 @@ export function MenuShell({
   mode = "public",
   loading = false,
   error = "",
+  actionError = "",
   onCreate,
   onEdit,
   onEditEstablishment,
@@ -155,6 +156,7 @@ export function MenuShell({
 
         {loading && <StatePanel title="Carregando cardapio" />}
         {error && <StatePanel title={error} tone="danger" />}
+        {actionError && <StatePanel title={actionError} tone="danger" />}
         {!loading && !error && categories.length === 0 && (
           <StatePanel title={isAdmin ? "Nenhum produto cadastrado" : "Cardapio indisponivel"} />
         )}
@@ -198,11 +200,12 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
   const hasImage = Boolean(product.imageUrl);
 
   return (
-    <article className={`product-card ${hasImage ? "has-image" : ""} ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""}`}>
+    <article className={`product-card ${hasImage ? "has-image" : ""} ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""} ${product._pending ? "pending" : ""}`}>
       <div className="product-copy">
         <div className="product-title-row">
           <h3>{product.nome}</h3>
           {isAdmin && !product.ativo && <span className="status-pill">Pausado</span>}
+          {isAdmin && product._pending && <span className="status-pill pending-pill">Salvando</span>}
         </div>
         <p>{product.descricao}</p>
         <strong>{formatCurrency(product.preco)}</strong>
@@ -214,19 +217,19 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
 
       {isAdmin && (
         <div className="product-actions" aria-label={`Acoes de ${product.nome}`}>
-          <button className="mini-button" type="button" onClick={() => onEdit(product)} aria-label="Editar produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onEdit(product)} aria-label="Editar produto">
             <Pencil size={16} />
           </button>
-          <button className="mini-button" type="button" onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto">
             <ArrowUp size={16} />
           </button>
-          <button className="mini-button" type="button" onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto">
             <ArrowDown size={16} />
           </button>
-          <button className="mini-button" type="button" onClick={() => onToggleStatus(product)} aria-label="Alterar disponibilidade">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onToggleStatus(product)} aria-label="Alterar disponibilidade">
             {product.ativo ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button className="mini-button danger" type="button" onClick={() => onDelete(product)} aria-label="Remover produto">
+          <button className="mini-button danger" type="button" disabled={product._pending} onClick={() => onDelete(product)} aria-label="Remover produto">
             <Trash2 size={16} />
           </button>
         </div>

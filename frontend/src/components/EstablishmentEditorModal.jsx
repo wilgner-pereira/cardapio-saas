@@ -10,7 +10,7 @@ const emptyForm = {
   emailContato: ""
 };
 
-export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onUpload }) {
+export function EstablishmentEditorModal({ establishment, onClose, onSubmit }) {
   const [form, setForm] = useState(emptyForm);
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -40,15 +40,10 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onU
     setError("");
 
     try {
-      let logoUrl = establishment?.logoUrl || "";
-      if (file) {
-        logoUrl = await onUpload(file);
-      }
-
       await onSubmit({
         ...form,
-        logoUrl
-      });
+        logoUrl: establishment?.logoUrl || ""
+      }, file);
     } catch (err) {
       setError(err.message);
     } finally {

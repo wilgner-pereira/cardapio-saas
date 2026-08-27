@@ -8,7 +8,7 @@ const emptyForm = {
   categoria: ""
 };
 
-export function ProductEditorModal({ product, onClose, onSubmit, onUpload }) {
+export function ProductEditorModal({ product, onClose, onSubmit }) {
   const [form, setForm] = useState(emptyForm);
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -40,16 +40,11 @@ export function ProductEditorModal({ product, onClose, onSubmit, onUpload }) {
     setError("");
 
     try {
-      let imageUrl = product?.imageUrl || "";
-      if (file) {
-        imageUrl = await onUpload(file);
-      }
-
       await onSubmit({
         ...form,
         preco: Number(String(form.preco).replace(",", ".")),
-        imageUrl
-      });
+        imageUrl: product?.imageUrl || ""
+      }, file);
     } catch (err) {
       setError(err.message);
     } finally {

@@ -29,6 +29,22 @@ function parseRoute(path) {
   return { name: "home" };
 }
 
+function sortProducts(products) {
+  return [...products].sort((a, b) => {
+    const categoryComparison = String(a.categoria || "").localeCompare(String(b.categoria || ""));
+    if (categoryComparison !== 0) {
+      return categoryComparison;
+    }
+
+    const orderComparison = (a.ordem ?? 0) - (b.ordem ?? 0);
+    if (orderComparison !== 0) {
+      return orderComparison;
+    }
+
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
 export function App() {
   const [path, setPath] = useState(getPath);
   const route = useMemo(() => parseRoute(path), [path]);
@@ -124,6 +140,7 @@ function AdminMenuPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
   const [establishment, setEstablishment] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -134,8 +151,11 @@ function AdminMenuPage() {
     setEstablishment(nextEstablishment);
   }, []);
 
-  const loadAdminData = useCallback(async () => {
-    setLoading(true);
+  const loadAdminData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setActionError("");
+    }
     setError("");
     try {
       const [productData, establishmentData] = await Promise.all([
@@ -144,9 +164,15 @@ function AdminMenuPage() {
       ]);
       applyAdminSnapshot(productData, establishmentData);
     } catch (err) {
-      setError(err.message);
+      if (silent) {
+        setActionError(current => current || err.message);
+      } else {
+        setError(err.message);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [applyAdminSnapshot]);
 
@@ -161,56 +187,183 @@ function AdminMenuPage() {
     }
   }, [auth.status, loadAdminData]);
 
-  async function handleSubmit(payload) {
-    setError("");
-    if (editingProduct) {
-      await api.updateProduct(editingProduct.id, payload);
-      const updatedProducts = products.map(product => (
-        product.id === editingProduct.id
-          ? { ...product, ...payload, id: editingProduct.id }
-          : product
-      ));
-      setProducts(updatedProducts);
-    } else {
-      const createdProduct = await api.createProduct(payload);
-      setProducts(current => [...current, createdProduct]);
-    }
+  function handleSubmit(payload, imageFile) {
+    setActionError("");
+
+    const productBeingEdited = editingProduct;
+    const previewUrl = imageFile ? URL.createObjectURL(imageFile) : "";
+    const optimisticPayload = imageFile
+      ? { ...payload, imageUrl: previewUrl }
+      : payload;
     setModalOpen(false);
     setEditingProduct(null);
-  }
 
-  async function handleEstablishmentSubmit(payload) {
-    setError("");
-    const { logoUrl, ...establishmentPayload } = payload;
-    let updated = await api.updateMyEstablishment(establishmentPayload);
+    if (productBeingEdited) {
+      const optimisticProduct = { ...productBeingEdited, ...optimisticPayload, _pending: true };
+      setProducts(current => sortProducts(current.map(product => (
+        product.id === productBeingEdited.id ? optimisticProduct : product
+      ))));
 
-    if (logoUrl !== (establishment?.logoUrl || "")) {
-      updated = await api.updateMyEstablishmentLogo(logoUrl || "");
+      void (async () => {
+        const persistedPayload = imageFile
+          ? { ...payload, imageUrl: await api.uploadImage(imageFile) }
+          : payload;
+        return api.updateProduct(productBeingEdited.id, persistedPayload);
+      })()
+        .then(updatedProduct => {
+          setProducts(current => sortProducts(current.map(product => (
+            product.id === productBeingEdited.id
+              ? { ...updatedProduct, _pending: false }
+              : product
+          ))));
+        })
+        .catch(err => {
+          setProducts(current => sortProducts(current.map(product => (
+            product.id === productBeingEdited.id ? productBeingEdited : product
+          ))));
+          setActionError(`Nao foi possivel salvar ${productBeingEdited.nome}: ${err.message}`);
+        })
+        .finally(() => {
+          if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+          }
+        });
+      return;
     }
 
-    setEstablishment(updated);
-    setEstablishmentModalOpen(false);
+    const temporaryId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const categoryProducts = products.filter(product => product.categoria === payload.categoria);
+    const nextOrder = categoryProducts.reduce(
+      (highest, product) => Math.max(highest, product.ordem ?? -1),
+      -1
+    ) + 1;
+    const optimisticProduct = {
+      ...optimisticPayload,
+      id: temporaryId,
+      ativo: true,
+      ordem: nextOrder,
+      _pending: true
+    };
+
+    setProducts(current => sortProducts([...current, optimisticProduct]));
+
+    void (async () => {
+      const persistedPayload = imageFile
+        ? { ...payload, imageUrl: await api.uploadImage(imageFile) }
+        : payload;
+      return api.createProduct(persistedPayload);
+    })()
+      .then(createdProduct => {
+        setProducts(current => sortProducts(current.map(product => (
+          product.id === temporaryId
+            ? { ...createdProduct, _pending: false }
+            : product
+        ))));
+      })
+      .catch(err => {
+        setProducts(current => current.filter(product => product.id !== temporaryId));
+        setActionError(`Nao foi possivel criar ${payload.nome}: ${err.message}`);
+      })
+      .finally(() => {
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+      });
   }
 
-  async function handleDelete(product) {
+  function handleEstablishmentSubmit(payload, logoFile) {
+    setActionError("");
+    const { logoUrl, ...establishmentPayload } = payload;
+    const previousEstablishment = establishment;
+    const previewUrl = logoFile ? URL.createObjectURL(logoFile) : "";
+    const optimisticLogoUrl = previewUrl || logoUrl;
+
+    setEstablishment(current => ({
+      ...current,
+      ...establishmentPayload,
+      logoUrl: optimisticLogoUrl
+    }));
+    setEstablishmentModalOpen(false);
+
+    void (async () => {
+      try {
+        const [establishmentResponse, uploadedLogoUrl] = await Promise.all([
+          api.updateMyEstablishment(establishmentPayload),
+          logoFile ? api.uploadImage(logoFile) : Promise.resolve(logoUrl)
+        ]);
+        let updated = establishmentResponse;
+        if (uploadedLogoUrl !== (previousEstablishment?.logoUrl || "")) {
+          updated = await api.updateMyEstablishmentLogo(uploadedLogoUrl || "");
+        }
+        setEstablishment(updated);
+      } catch (err) {
+        setEstablishment(previousEstablishment);
+        setActionError(`Nao foi possivel salvar o estabelecimento: ${err.message}`);
+      } finally {
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+      }
+    })();
+  }
+
+  function handleDelete(product) {
     const confirmed = window.confirm(`Remover ${product.nome}?`);
     if (!confirmed) {
       return;
     }
-    await api.deleteProduct(product.id);
+
+    setActionError("");
+    const previousIndex = products.findIndex(item => item.id === product.id);
     setProducts(current => current.filter(item => item.id !== product.id));
+
+    void api.deleteProduct(product.id).catch(err => {
+      setProducts(current => {
+        if (current.some(item => item.id === product.id)) {
+          return current;
+        }
+        const restored = [...current];
+        restored.splice(Math.max(0, Math.min(previousIndex, restored.length)), 0, product);
+        return restored;
+      });
+      setActionError(`Nao foi possivel remover ${product.nome}: ${err.message}`);
+    });
   }
 
-  async function handleToggleStatus(product) {
-    await api.updateProductStatus(product.id, !product.ativo);
+  function handleToggleStatus(product) {
+    if (product._pending) {
+      return;
+    }
+
+    setActionError("");
+    const nextStatus = !product.ativo;
     setProducts(current => current.map(item => (
       item.id === product.id
-        ? { ...item, ativo: !item.ativo }
+        ? { ...item, ativo: nextStatus, _pending: true }
         : item
     )));
+
+    void api.updateProductStatus(product.id, nextStatus)
+      .then(updatedProduct => {
+        setProducts(current => current.map(item => (
+          item.id === product.id
+            ? { ...updatedProduct, _pending: false }
+            : item
+        )));
+      })
+      .catch(err => {
+        setProducts(current => current.map(item => (
+          item.id === product.id ? product : item
+        )));
+        setActionError(`Nao foi possivel alterar ${product.nome}: ${err.message}`);
+      });
   }
 
-  async function handleMoveProduct(product, direction) {
+  function handleMoveProduct(product, direction) {
+    if (product._pending) {
+      return;
+    }
+
     const sameCategory = products.filter(item => item.categoria === product.categoria);
     const currentIndex = sameCategory.findIndex(item => item.id === product.id);
     const targetIndex = currentIndex + direction;
@@ -220,28 +373,49 @@ function AdminMenuPage() {
     }
 
     const target = sameCategory[targetIndex];
+    if (target._pending) {
+      return;
+    }
 
-    await Promise.all([
-      api.updateProductOrder(product.id, targetIndex),
-      api.updateProductOrder(target.id, currentIndex)
-    ]);
+    setActionError("");
+
     setProducts(current => {
       const updated = current.map(item => {
         if (item.id === product.id) {
-          return { ...item, ordem: targetIndex };
+          return { ...item, ordem: targetIndex, _pending: true };
         }
         if (item.id === target.id) {
-          return { ...item, ordem: currentIndex };
+          return { ...item, ordem: currentIndex, _pending: true };
         }
         return item;
       });
-      return [...updated].sort((a, b) => {
-        if (a.categoria === b.categoria) {
-          return (a.ordem ?? 0) - (b.ordem ?? 0);
-        }
-        return String(a.categoria || "").localeCompare(String(b.categoria || ""));
-      });
+      return sortProducts(updated);
     });
+
+    void Promise.all([
+      api.updateProductOrder(product.id, targetIndex),
+      api.updateProductOrder(target.id, currentIndex)
+    ])
+      .then(() => {
+        setProducts(current => current.map(item => (
+          item.id === product.id || item.id === target.id
+            ? { ...item, _pending: false }
+            : item
+        )));
+      })
+      .catch(async err => {
+        setProducts(current => sortProducts(current.map(item => {
+          if (item.id === product.id) {
+            return product;
+          }
+          if (item.id === target.id) {
+            return target;
+          }
+          return item;
+        })));
+        setActionError(`Nao foi possivel reordenar ${product.nome}: ${err.message}`);
+        await loadAdminData({ silent: true });
+      });
   }
 
   async function handleLogout() {
@@ -266,6 +440,7 @@ function AdminMenuPage() {
         products={products}
         loading={loading}
         error={error}
+        actionError={actionError}
         onCreate={() => {
           setEditingProduct(null);
           setModalOpen(true);
@@ -278,7 +453,7 @@ function AdminMenuPage() {
         onDelete={handleDelete}
         onMoveProduct={handleMoveProduct}
         onToggleStatus={handleToggleStatus}
-        onRefresh={loadAdminData}
+        onRefresh={() => loadAdminData()}
         onLogout={handleLogout}
       />
 
@@ -302,7 +477,6 @@ function AdminMenuPage() {
             setEditingProduct(null);
           }}
           onSubmit={handleSubmit}
-          onUpload={api.uploadImage}
         />
       )}
 
@@ -311,7 +485,6 @@ function AdminMenuPage() {
           establishment={establishment}
           onClose={() => setEstablishmentModalOpen(false)}
           onSubmit={handleEstablishmentSubmit}
-          onUpload={api.uploadImage}
         />
       )}
     </>

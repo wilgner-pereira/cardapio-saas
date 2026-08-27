@@ -349,6 +349,10 @@ button {
   opacity: 0.56;
 }
 
+.product-card.pending {
+  box-shadow: inset 3px 0 0 rgba(53, 95, 49, 0.62);
+}
+
 .product-copy {
   min-width: 0;
 }
@@ -412,6 +416,11 @@ button {
   color: var(--danger);
 }
 
+.mini-button:disabled {
+  opacity: 0.48;
+  cursor: wait;
+}
+
 .status-pill {
   padding: 4px 8px;
   border-radius: 999px;
@@ -419,6 +428,10 @@ button {
   font-weight: 850;
   color: #fff8ed;
   background: var(--danger);
+}
+
+.status-pill.pending-pill {
+  background: var(--green);
 }
 
 .state-panel {
