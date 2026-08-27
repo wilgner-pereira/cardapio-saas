@@ -7,11 +7,10 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
@@ -24,7 +23,7 @@ public class SupabaseStorageService {
             MediaType.IMAGE_GIF_VALUE
     );
 
-    private final WebClient webClient;
+    private final RestClient restClient;
 
     @Value("${supabase.url}")
     private String projectUrl;
@@ -35,8 +34,8 @@ public class SupabaseStorageService {
     @Value("${supabase.bucket}")
     private String bucket;
 
-    public SupabaseStorageService(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.build();
+    public SupabaseStorageService(RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder.build();
     }
 
     public String uploadFile(MultipartFile file) throws Exception {
@@ -62,22 +61,17 @@ public class SupabaseStorageService {
 
         String uploadUrl = projectUrl + "/storage/v1/object/" + bucket + "/" + fileName;
 
-        webClient.put()
+        restClient.put()
                 .uri(uploadUrl)
                 .contentType(MediaType.parseMediaType(file.getContentType()))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .header("apikey", apiKey)
-                .bodyValue(bytes)
+                .body(bytes)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, response ->
-                        response.createException()
-                                .map(ex -> new ExternalServiceException("Falha ao enviar imagem para o storage", ex))
-                )
-                .bodyToMono(String.class)
-                .onErrorMap(ex -> ex instanceof ExternalServiceException
-                        ? ex
-                        : new ExternalServiceException("Falha ao enviar imagem para o storage", ex))
-                .block(Duration.ofMinutes(2));
+                .onStatus(HttpStatusCode::isError, (request, response) -> {
+                    throw new ExternalServiceException("Falha ao enviar imagem para o storage");
+                })
+                .body(String.class);
 
         return projectUrl + "/storage/v1/object/public/" + bucket + "/" + fileName;
     }
@@ -93,20 +87,15 @@ public class SupabaseStorageService {
                 .build()
                 .toUriString();
 
-        ResponseEntity<byte[]> response = webClient.get()
+        ResponseEntity<byte[]> response = restClient.get()
                 .uri(downloadUrl)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .header("apikey", apiKey)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, storageResponse ->
-                        storageResponse.createException()
-                                .map(ex -> new ExternalServiceException("Falha ao buscar imagem no storage", ex))
-                )
-                .toEntity(byte[].class)
-                .onErrorMap(ex -> ex instanceof ExternalServiceException
-                        ? ex
-                        : new ExternalServiceException("Falha ao buscar imagem no storage", ex))
-                .block(Duration.ofMinutes(2));
+                .onStatus(HttpStatusCode::isError, (request, res) -> {
+                    throw new ExternalServiceException("Falha ao buscar imagem no storage");
+                })
+                .toEntity(byte[].class);
 
         if (response == null || response.getBody() == null) {
             throw new ExternalServiceException("Imagem não encontrada no storage");
