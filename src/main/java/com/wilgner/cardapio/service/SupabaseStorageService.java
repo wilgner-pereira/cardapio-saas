@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Set;
@@ -82,7 +83,7 @@ public class SupabaseStorageService {
         return projectUrl + "/storage/v1/object/public/" + bucket + "/" + fileName;
     }
 
-    public StoredFile downloadFile(String fileName) {
+    public Mono<StoredFile> downloadFile(String fileName) {
         if (fileName == null || fileName.isBlank() || fileName.contains("/") || fileName.contains("\\")) {
             throw new IllegalArgumentException("Nome de arquivo inválido");
         }
@@ -93,7 +94,7 @@ public class SupabaseStorageService {
                 .build()
                 .toUriString();
 
-        ResponseEntity<byte[]> response = webClient.get()
+        return webClient.get()
                 .uri(downloadUrl)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .header("apikey", apiKey)
@@ -106,17 +107,17 @@ public class SupabaseStorageService {
                 .onErrorMap(ex -> ex instanceof ExternalServiceException
                         ? ex
                         : new ExternalServiceException("Falha ao buscar imagem no storage", ex))
-                .block(Duration.ofMinutes(2));
-
-        if (response == null || response.getBody() == null) {
-            throw new ExternalServiceException("Imagem não encontrada no storage");
-        }
-
-        MediaType contentType = response.getHeaders().getContentType();
-        return new StoredFile(
-                response.getBody(),
-                contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM
-        );
+                .map(response -> {
+                    if (response == null || response.getBody() == null) {
+                        throw new ExternalServiceException("Imagem não encontrada no storage");
+                    }
+                    MediaType contentType = response.getHeaders().getContentType();
+                    return new StoredFile(
+                            response.getBody(),
+                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM
+                    );
+                })
+                .timeout(Duration.ofMinutes(2));
     }
 
     private boolean isValidImageMagicBytes(byte[] bytes) {
