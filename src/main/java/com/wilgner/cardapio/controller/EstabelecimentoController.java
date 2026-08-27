@@ -4,14 +4,18 @@ import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoResponseDTO
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoUpdateRequestDTO;
 import com.wilgner.cardapio.service.EstabelecimentoServiceImpl;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.validation.annotation.Validated;
+
 @RestController
 @RequestMapping("/painel/estabelecimento")
 @PreAuthorize("hasRole('USER')")
+@Validated
 public class EstabelecimentoController {
 
     private final EstabelecimentoServiceImpl estabelecimentoService;
@@ -35,7 +39,7 @@ public class EstabelecimentoController {
 
     @PutMapping("/logo")
     public ResponseEntity<EstabelecimentoResponseDTO> atualizarLogo(
-            @RequestParam String logoUrl) {
+            @RequestParam @Size(max = 2048) @Pattern(regexp = "^(|https?://.+)$", message = "URL da logo inválida") String logoUrl) {
         EstabelecimentoResponseDTO response = estabelecimentoService.atualizarLogo(logoUrl);
         return ResponseEntity.ok(response);
     }

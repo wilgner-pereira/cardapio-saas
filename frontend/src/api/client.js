@@ -1,19 +1,9 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-const ACCESS_TOKEN_KEY = "cardapio.accessToken";
 const AUTH_USER_KEY = "cardapio.authUser";
 
-let accessToken = localStorage.getItem(ACCESS_TOKEN_KEY) || "";
 let refreshPromise = null;
 
 function saveSession(session) {
-  accessToken = session?.accessToken || "";
-
-  if (accessToken) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  } else {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-  }
-
   if (session?.username) {
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify({
       userId: session.userId,
@@ -26,8 +16,6 @@ function saveSession(session) {
 }
 
 function clearSession() {
-  accessToken = "";
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(AUTH_USER_KEY);
 }
 
@@ -43,8 +31,8 @@ function getStoredUser() {
   }
 }
 
-function hasAccessToken() {
-  return Boolean(accessToken);
+function hasStoredUser() {
+  return getStoredUser() !== null;
 }
 
 function resolveImageUrl(url) {
@@ -89,8 +77,11 @@ async function doFetch(path, options = {}) {
     requestHeaders["Content-Type"] = "application/json";
   }
 
-  if (auth && accessToken) {
-    requestHeaders.Authorization = `Bearer ${accessToken}`;
+  const match = document.cookie.match(new RegExp('(^| )XSRF-TOKEN=([^;]+)'));
+  const csrfToken = match ? match[2] : null;
+
+  if (csrfToken && ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())) {
+    requestHeaders["X-XSRF-TOKEN"] = csrfToken;
   }
 
   return fetch(`${API_BASE}${path}`, {
@@ -120,7 +111,7 @@ async function refreshAccessToken() {
         }
 
         saveSession(data);
-        return data.accessToken;
+        return data;
       })
       .finally(() => {
         refreshPromise = null;
@@ -153,11 +144,12 @@ async function request(path, options = {}) {
 
 export const api = {
   getStoredUser,
-  hasAccessToken,
+  hasStoredUser,
   resolveImageUrl,
 
   async login(username, password) {
     clearSession();
+    await request("/auth/csrf", { auth: false });
     const session = await request("/auth/login", {
       method: "POST",
       body: { username, password },
@@ -179,13 +171,14 @@ export const api = {
   },
 
   async validate() {
-    if (!hasAccessToken()) {
+    if (!hasStoredUser()) {
       clearSession();
       throw new Error("Sessao ausente");
     }
 
+    await request("/auth/csrf", { auth: false });
     const session = await request("/auth/validate");
-    saveSession({ ...session, accessToken });
+    saveSession(session);
     return session;
   },
 

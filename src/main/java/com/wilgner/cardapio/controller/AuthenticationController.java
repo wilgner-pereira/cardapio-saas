@@ -85,9 +85,11 @@ public class AuthenticationController {
         Usuario user = findAuthenticatedUser(username);
 
         String newAccessToken = tokenService.generateAccessToken(user);
+        String newRefreshToken = tokenService.generateRefreshToken(user);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(newAccessToken, tokenService.getAccessTokenDuration()).toString())
+                .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(newRefreshToken, tokenService.getRefreshTokenDuration()).toString())
                 .body(toResponse("Token renovado", newAccessToken, user));
     }
 

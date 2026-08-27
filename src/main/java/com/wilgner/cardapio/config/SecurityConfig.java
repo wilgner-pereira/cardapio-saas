@@ -3,6 +3,7 @@ package com.wilgner.cardapio.config;
 import com.wilgner.cardapio.security.RestAccessDeniedHandler;
 import com.wilgner.cardapio.security.RestAuthenticationEntryPoint;
 import com.wilgner.cardapio.security.SecurityFilter;
+import com.wilgner.cardapio.security.SpaCsrfTokenRequestHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,6 +48,14 @@ public class SecurityConfig {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
     }
+    @Bean
+    public CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookieCustomizer(cookie -> cookie
+                .sameSite("None")
+                .secure(true));
+        return repository;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -55,7 +64,8 @@ public class SecurityConfig {
 
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfTokenRepository())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers(bearerTokenRequestMatcher())
                         .ignoringRequestMatchers(
                                 "/auth/login",
@@ -67,6 +77,16 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/actuator/health/**"
                         ))
+
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.deny())
+                        .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000))
+                        .referrerPolicy(referrer -> referrer
+                                .policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                )
 
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -85,7 +105,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/auth/validate").authenticated()
                         .requestMatchers("/auth/**").authenticated()
                         .requestMatchers("/plataforma/**").hasRole("ADMIN")
-                        .requestMatchers("/painel/**").hasRole("USER")
+                        .requestMatchers("/painel/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().authenticated()
                 )
 

@@ -94,69 +94,62 @@ $env:SUPABASE_KEY="sua-chave-do-supabase"
 
 Nao use `DATABASE_URL` do Supabase junto com o perfil `dev`, porque `dev` e reservado para H2 em memoria.
 
-## Seguranca
+## Seguranca & Producao
 
-- Tokens JWT sao emitidos como cookies `HttpOnly`.
-- A API tambem aceita `Authorization: Bearer <token>` para clientes tecnicos e Swagger.
-- Endpoints administrativos exigem usuario com `ROLE_USER`.
-- Requisicoes mutaveis protegidas por cookie precisam enviar token CSRF. Obtenha-o em `GET /auth/admin/csrf` e envie o valor no header `X-XSRF-TOKEN`.
-- Em producao, use `COOKIE_SECURE=true`, HTTPS e um `JWT_SECRET` forte.
+- **Autenticacao Segura:** Tokens JWT emitidos em cookies `HttpOnly` com flags `Secure` e `SameSite` configuradas.
+- **Headers HTTP:** HSTS obrigatório, Anti-Clickjacking (`X-Frame-Options: DENY`), Anti-MIME Sniffing (`X-Content-Type-Options: nosniff`) e `Referrer-Policy`.
+- **Validacao de Uploads:** Inspecao de *Magic Bytes* (assinatura binaria) para impedir upload de executaveis/scripts disfarçados de imagem.
+- **Multi-tenancy:** Consultas e mutacoes amarradas exclusivamente ao `estabelecimento_id` do usuario autenticado, prevenindo IDOR.
+- **Bootstrap de Administrador:** Criação segura via variáveis de ambiente no boot (`APP_BOOTSTRAP_ADMIN_ENABLED=true`) ou via endpoint protegido condicionalmente por `APP_SETUP_ADMIN_ENABLED=true`.
 
 ## Endpoints principais
 
-| Metodo | Rota | Descricao |
-|---|---|---|
-| `POST` | `/auth/admin/register` | cria usuario |
-| `POST` | `/auth/admin/login` | autentica e cria cookies |
-| `POST` | `/auth/admin/refresh` | renova access token |
-| `POST` | `/auth/admin/logout` | limpa cookies |
-| `GET` | `/auth/admin/validate` | valida sessao |
-| `GET` | `/auth/admin/csrf` | retorna token CSRF |
-| `POST` | `/admin/produto` | cria produto |
-| `PUT` | `/admin/produto/{id}` | atualiza produto |
-| `PATCH` | `/admin/produto/{id}/status` | ativa ou desativa produto |
-| `DELETE` | `/admin/produto/{id}` | exclui produto |
-| `GET` | `/admin/produto` | lista produtos do usuario |
-| `GET` | `/public/{username}/cardapio` | lista produtos ativos publicos |
-| `POST` | `/storage/upload` | envia imagem ao Supabase Storage |
+| Metodo | Rota | Autenticacao | Descricao |
+|---|---|---|---|
+| `POST` | `/auth/login` | Publico | Autentica e emite cookies `HttpOnly` |
+| `POST` | `/auth/refresh` | Publico (via cookie) | Renova o access token |
+| `POST` | `/auth/logout` | Publico | Invalida sessao e limpa cookies |
+| `GET` | `/auth/validate` | Autenticado | Valida token/sessao atual |
+| `GET` | `/auth/csrf` | Publico | Retorna token CSRF |
+| `POST` | `/setup/admin` | Flag `APP_SETUP_ADMIN_ENABLED` | Cria primeiro admin inicial da plataforma |
+| `GET` | `/painel/estabelecimento` | `ROLE_USER` / `ROLE_ADMIN` | Obtem dados do estabelecimento do usuario |
+| `PUT` | `/painel/estabelecimento` | `ROLE_USER` / `ROLE_ADMIN` | Atualiza dados do estabelecimento |
+| `POST` | `/painel/produtos` | `ROLE_USER` / `ROLE_ADMIN` | Cadastra novo produto |
+| `PUT` | `/painel/produtos/{id}` | `ROLE_USER` / `ROLE_ADMIN` | Atualiza produto do estabelecimento |
+| `PATCH` | `/painel/produtos/{id}/status` | `ROLE_USER` / `ROLE_ADMIN` | Ativa ou desativa produto |
+| `PATCH` | `/painel/produtos/{id}/ordem` | `ROLE_USER` / `ROLE_ADMIN` | Altera ordem do produto |
+| `DELETE` | `/painel/produtos/{id}` | `ROLE_USER` / `ROLE_ADMIN` | Exclui produto |
+| `GET` | `/painel/produtos` | `ROLE_USER` / `ROLE_ADMIN` | Lista produtos do estabelecimento |
+| `POST` | `/painel/storage/upload` | `ROLE_USER` / `ROLE_ADMIN` | Envia imagem validada ao storage |
+| `GET` | `/public/{slug}/cardapio` | Publico | Visualizacao do cardapio do estabelecimento |
+| `GET` | `/public/{slug}/cardapio/info` | Publico | Informacoes publicas do estabelecimento |
+| `GET` | `/public/storage/{fileName}` | Publico | Proxy seguro de download de imagem |
+| `POST` | `/plataforma/estabelecimentos` | `ROLE_ADMIN` | Cadastro administrativo de novos clientes |
+| `GET` | `/plataforma/estabelecimentos` | `ROLE_ADMIN` | Listagem geral de estabelecimentos |
 
-## Variaveis de ambiente
+## Variaveis de ambiente para Producao
 
 Veja `.env.example`.
 
 Variaveis obrigatorias para producao:
 
-- `DATABASE_URL`
-- `DATABASE_USERNAME`
-- `DATABASE_PASSWORD`
-- `JWT_SECRET`
-- `SUPABASE_URL`
-- `SUPABASE_KEY`
-- `SUPABASE_BUCKET`
-- `CORS_ALLOWED_ORIGINS`
-
-Exemplo de banco Supabase:
-
-```env
-DATABASE_URL=jdbc:postgresql://db.hjigxbjeeecuehlbxxny.supabase.co:5432/postgres
-DATABASE_USERNAME=postgres
-DATABASE_PASSWORD=sua-senha-do-banco
-```
-
-O painel do Supabase tambem mostra uma URL no formato `postgresql://postgres:[PASSWORD]@...`. Para esta API Spring Boot, use o formato JDBC acima. Se sua rede for apenas IPv4, use o Session Pooler do Supabase no lugar do host direto `db.hjigxbjeeecuehlbxxny.supabase.co`.
-
-## Banco de dados
-
-O schema e versionado com Flyway em `src/main/resources/db/migration`. O Hibernate valida o schema, mas nao altera tabelas automaticamente.
+- `SPRING_PROFILES_ACTIVE=supabase` (ou `prod`)
+- `DATABASE_URL=jdbc:postgresql://host:5432/postgres?sslmode=require`
+- `DATABASE_USERNAME=usuario`
+- `DATABASE_PASSWORD=senha-forte`
+- `JWT_SECRET=chave-criptografica-hex-longa-e-segura`
+- `COOKIE_SECURE=true`
+- `COOKIE_SAME_SITE=Strict`
+- `CORS_ALLOWED_ORIGINS=https://seu-front-end.com.br`
+- `SUPABASE_URL=https://seu-projeto.supabase.co`
+- `SUPABASE_KEY=sua-service-key`
+- `SUPABASE_BUCKET=cardapio-imagens`
+- `APP_SETUP_ADMIN_ENABLED=false`
 
 ## Testes
 
 ```bash
-mvn test
+.\mvnw.cmd test
 ```
 
-Os testes usam perfil `test`, H2 em memoria e migrations Flyway.
-
-## Front-end
-
-Nao ha front-end React versionado neste repositorio. Para integrar um SPA, configure `CORS_ALLOWED_ORIGINS`, use `credentials: "include"` para cookies e leia `GET /auth/admin/csrf` antes de chamadas `POST`, `PUT`, `PATCH` e `DELETE` autenticadas.
+Os testes automatizados cobrem autenticacao, autorizacao, headers HTTP de seguranca, CRUD multi-tenant e migrations Flyway.

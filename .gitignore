@@ -10,6 +10,8 @@ target/
 .env
 .env.*
 !.env.example
+.env.local
+frontend/.env.local
 
 # Logs
 *.log
@@ -80,3 +82,9 @@ tmp/
 *.tmp
 *.bak
 *.local
+
+# Bats pra rodar
+/run-backend.bat
+/run-frontend.bat
+/frontend/run-frontend.bat
+*.lnk

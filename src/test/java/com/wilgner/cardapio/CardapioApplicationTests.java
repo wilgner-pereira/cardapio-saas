@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -38,6 +39,15 @@ class CardapioApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void securityHeadersArePresent() throws Exception {
+        mockMvc.perform(get("/public/restaurante/cardapio").secure(true))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"));
     }
 
     @Test

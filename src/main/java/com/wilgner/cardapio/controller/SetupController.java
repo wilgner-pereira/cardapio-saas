@@ -4,6 +4,7 @@ import com.wilgner.cardapio.model.dto.auth.RegisterRequestDTO;
 import com.wilgner.cardapio.model.dto.auth.RegisterResponseDTO;
 import com.wilgner.cardapio.service.AdminEstabelecimentoServiceImpl;
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/setup")
+@ConditionalOnProperty(prefix = "app.setup-admin", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class SetupController {
 
     private final AdminEstabelecimentoServiceImpl estabelecimentoService;

@@ -129,6 +129,11 @@ function AdminMenuPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [establishmentModalOpen, setEstablishmentModalOpen] = useState(false);
 
+  const applyAdminSnapshot = useCallback((nextProducts, nextEstablishment) => {
+    setProducts(nextProducts);
+    setEstablishment(nextEstablishment);
+  }, []);
+
   const loadAdminData = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -137,14 +142,13 @@ function AdminMenuPage() {
         api.getAdminProducts(),
         api.getMyEstablishment()
       ]);
-      setProducts(productData);
-      setEstablishment(establishmentData);
+      applyAdminSnapshot(productData, establishmentData);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyAdminSnapshot]);
 
   useEffect(() => {
     if (auth.status === "anonymous") {
@@ -158,17 +162,25 @@ function AdminMenuPage() {
   }, [auth.status, loadAdminData]);
 
   async function handleSubmit(payload) {
+    setError("");
     if (editingProduct) {
       await api.updateProduct(editingProduct.id, payload);
+      const updatedProducts = products.map(product => (
+        product.id === editingProduct.id
+          ? { ...product, ...payload, id: editingProduct.id }
+          : product
+      ));
+      setProducts(updatedProducts);
     } else {
-      await api.createProduct(payload);
+      const createdProduct = await api.createProduct(payload);
+      setProducts(current => [...current, createdProduct]);
     }
     setModalOpen(false);
     setEditingProduct(null);
-    await loadAdminData();
   }
 
   async function handleEstablishmentSubmit(payload) {
+    setError("");
     const { logoUrl, ...establishmentPayload } = payload;
     let updated = await api.updateMyEstablishment(establishmentPayload);
 
@@ -178,7 +190,6 @@ function AdminMenuPage() {
 
     setEstablishment(updated);
     setEstablishmentModalOpen(false);
-    await loadAdminData();
   }
 
   async function handleDelete(product) {
@@ -187,12 +198,16 @@ function AdminMenuPage() {
       return;
     }
     await api.deleteProduct(product.id);
-    await loadAdminData();
+    setProducts(current => current.filter(item => item.id !== product.id));
   }
 
   async function handleToggleStatus(product) {
     await api.updateProductStatus(product.id, !product.ativo);
-    await loadAdminData();
+    setProducts(current => current.map(item => (
+      item.id === product.id
+        ? { ...item, ativo: !item.ativo }
+        : item
+    )));
   }
 
   async function handleMoveProduct(product, direction) {
@@ -210,7 +225,23 @@ function AdminMenuPage() {
       api.updateProductOrder(product.id, targetIndex),
       api.updateProductOrder(target.id, currentIndex)
     ]);
-    await loadAdminData();
+    setProducts(current => {
+      const updated = current.map(item => {
+        if (item.id === product.id) {
+          return { ...item, ordem: targetIndex };
+        }
+        if (item.id === target.id) {
+          return { ...item, ordem: currentIndex };
+        }
+        return item;
+      });
+      return [...updated].sort((a, b) => {
+        if (a.categoria === b.categoria) {
+          return (a.ordem ?? 0) - (b.ordem ?? 0);
+        }
+        return String(a.categoria || "").localeCompare(String(b.categoria || ""));
+      });
+    });
   }
 
   async function handleLogout() {

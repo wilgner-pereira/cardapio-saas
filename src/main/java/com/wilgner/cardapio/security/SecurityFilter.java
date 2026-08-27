@@ -12,6 +12,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -20,6 +22,8 @@ import java.io.IOException;
 
 @Component
 public class SecurityFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(SecurityFilter.class);
+
     private final TokenService tokenService;
     private final UsuarioRepository usuarioRepository;
 
@@ -56,11 +60,18 @@ public class SecurityFilter extends OncePerRequestFilter {
                 );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
+                log.debug("JWT de acesso autenticado para usuario={} metodo={} uri={}",
+                        username, request.getMethod(), request.getRequestURI());
+
             } catch (Exception ex) {
-                // token inválido / expirado
-                // NÃO joga exception, apenas segue o fluxo sem autenticar
-                // assim o controller responderá 401
+                log.debug("JWT de acesso rejeitado metodo={} uri={} motivo={}",
+                        request.getMethod(),
+                        request.getRequestURI(),
+                        ex.getClass().getSimpleName());
             }
+        } else {
+            log.trace("Requisicao sem JWT de acesso metodo={} uri={}",
+                    request.getMethod(), request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
