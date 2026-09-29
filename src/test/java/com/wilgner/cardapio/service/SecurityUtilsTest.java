@@ -44,6 +44,7 @@ class SecurityUtilsTest {
         CustomUserDetails customUserDetails = new CustomUserDetails(expectedUsuario);
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
 
         // Act
@@ -66,5 +67,27 @@ class SecurityUtilsTest {
 
         // Assert
         assertNull(result);
+    }
+
+    @Test
+    void missingAuthenticationReturnsNull() {
+        SecurityContextHolder.clearContext();
+        assertNull(SecurityUtils.getUsuarioAutenticado());
+    }
+
+    @Test
+    void customPrincipalWithoutAuthenticatedFlagIsRejected() {
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.isAuthenticated()).thenReturn(false);
+        assertNull(SecurityUtils.getUsuarioAutenticado());
+        verify(authentication, never()).getPrincipal();
+    }
+
+    @Test
+    void unexpectedPrincipalIsRejectedEvenWhenAuthenticated() {
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getPrincipal()).thenReturn("unexpected");
+        assertNull(SecurityUtils.getUsuarioAutenticado());
     }
 }

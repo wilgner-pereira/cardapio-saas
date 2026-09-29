@@ -14,7 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/plataforma/estabelecimentos")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('PLATFORM_ADMIN')")
 public class AdminEstabelecimentoController {
 
     private final AdminEstabelecimentoServiceImpl estabelecimentoService;

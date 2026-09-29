@@ -61,7 +61,7 @@ class CardapioApplicationTests {
     @Test
     void registerRejectsInvalidPayload() throws Exception {
         mockMvc.perform(post("/plataforma/estabelecimentos")
-                        .with(user("platform-admin").roles("ADMIN"))
+                        .with(user("platform-admin").roles("PLATFORM_ADMIN"))
                         .with(csrf())
                         .contentType("application/json")
                         .content("""
@@ -90,8 +90,74 @@ class CardapioApplicationTests {
                 .andExpect(cookie().exists("refresh_token"))
                 .andExpect(cookie().httpOnly("access_token", true))
                 .andExpect(cookie().value("access_token", containsString(".")))
-                .andExpect(jsonPath("$.accessToken", containsString(".")))
+                .andExpect(cookie().httpOnly("refresh_token", true))
+                .andExpect(cookie().path("access_token", "/"))
+                .andExpect(cookie().path("refresh_token", "/"))
+                .andExpect(jsonPath("$.accessToken").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.refreshToken").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.username").value(username))
+                .andExpect(jsonPath("$.estabelecimentoSlug").value(username))
+                .andExpect(jsonPath("$.roles[0]").value("ROLE_TENANT_ADMIN"))
+                .andExpect(jsonPath("$.accessExpiresInMs").value(900000))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"));
+    }
+
+    @Test
+    void cookieSessionCanValidateRefreshAndLogoutWithoutTokensInJson() throws Exception {
+        String username = uniqueUsername("session");
+        Cookie[] loginCookies = registerAndLogin(username);
+
+        mockMvc.perform(get("/auth/validate").cookie(loginCookies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.refreshToken").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.username").value(username))
+                .andExpect(jsonPath("$.accessExpiresInMs").value(0));
+
+        MvcResult refreshed = mockMvc.perform(post("/auth/refresh").cookie(loginCookies[1]))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.refreshToken").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.username").value(username))
+                .andExpect(jsonPath("$.roles[0]").value("ROLE_TENANT_ADMIN"))
+                .andExpect(jsonPath("$.estabelecimentoSlug").value(username))
+                .andExpect(jsonPath("$.accessExpiresInMs").value(900000))
+                .andExpect(cookie().httpOnly("access_token", true))
+                .andExpect(cookie().httpOnly("refresh_token", true))
+                .andExpect(cookie().maxAge("access_token", 900))
+                .andExpect(cookie().maxAge("refresh_token", 604800))
+                .andReturn();
+
+        Cookie[] refreshedCookies = refreshed.getResponse().getCookies();
+        mockMvc.perform(get("/painel/estabelecimento").cookie(refreshedCookies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slug").value(username));
+
+        MvcResult logout = mockMvc.perform(post("/auth/logout").with(csrf()).cookie(refreshedCookies))
+                .andExpect(status().isOk())
+                .andExpect(cookie().maxAge("access_token", 0))
+                .andExpect(cookie().maxAge("refresh_token", 0))
+                .andExpect(cookie().value("access_token", ""))
+                .andExpect(cookie().value("refresh_token", ""))
+                .andReturn();
+
+        mockMvc.perform(get("/auth/validate").cookie(logout.getResponse().getCookies()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refreshRejectsMissingInvalidAndAccessTokens() throws Exception {
+        Cookie[] cookies = registerAndLogin(uniqueUsername("refresh"));
+        mockMvc.perform(post("/auth/refresh"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/auth/refresh").cookie(new Cookie("refresh_token", "invalid")))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/auth/refresh")
+                        .cookie(new Cookie("refresh_token", cookies[0].getValue())))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/auth/validate")
+                        .cookie(new Cookie("access_token", cookies[1].getValue())))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -317,12 +383,12 @@ class CardapioApplicationTests {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        return objectMapper.readTree(login.getResponse().getContentAsString()).get("accessToken").asText();
+        return login.getResponse().getCookie("access_token").getValue();
     }
 
     private void register(String username) throws Exception {
         mockMvc.perform(post("/plataforma/estabelecimentos")
-                        .with(user("platform-admin").roles("ADMIN"))
+                        .with(user("platform-admin").roles("PLATFORM_ADMIN"))
                         .with(csrf())
                         .contentType("application/json")
                         .content("""

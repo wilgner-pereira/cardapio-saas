@@ -26,8 +26,10 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -63,9 +65,9 @@ class SpaCsrfIntegrationTests {
         estabelecimento.setAtivo(true);
         estabelecimentoRepository.save(estabelecimento);
 
-        Role userRole = roleRepository.findByRoleName("ROLE_USER").orElseGet(() -> {
+        Role userRole = roleRepository.findByRoleName("ROLE_TENANT_ADMIN").orElseGet(() -> {
             Role role = new Role();
-            role.setRoleName("ROLE_USER");
+            role.setRoleName("ROLE_TENANT_ADMIN");
             return roleRepository.save(role);
         });
 
@@ -107,5 +109,50 @@ class SpaCsrfIntegrationTests {
                         .content(objectMapper.writeValueAsString(new ProdutoOrdemRequestDTO(0))))
                 .andExpect(status().isNotFound())
                 .andReturn();
+    }
+
+    @Test
+    void logoutRejectsMissingOrInvalidCsrfEvenWithBearerHeader() throws Exception {
+        for (String authorization : new String[]{"", "Bearer invalid", "Bearer " + accessTokenCookie.getValue()}) {
+            mockMvc.perform(post("/auth/logout").cookie(accessTokenCookie).header("Authorization", authorization))
+                    .andExpect(status().isForbidden()).andExpect(cookie().doesNotExist("access_token"));
+        }
+        mockMvc.perform(post("/auth/logout").cookie(accessTokenCookie, new Cookie("XSRF-TOKEN", "expected"))
+                        .header("X-XSRF-TOKEN", "wrong"))
+                .andExpect(status().isForbidden()).andExpect(cookie().doesNotExist("access_token"));
+        mockMvc.perform(get("/auth/validate").cookie(accessTokenCookie)).andExpect(status().isOk());
+        mockMvc.perform(post(java.net.URI.create("/auth/log%6fut")).cookie(accessTokenCookie)
+                        .header("Authorization", "Bearer " + accessTokenCookie.getValue()))
+                .andExpect(status().isForbidden()).andExpect(cookie().doesNotExist("access_token"));
+    }
+
+    @Test
+    void csrfJsonWorksForCrossOriginSpaLogoutAndPreservesCookieAttributes() throws Exception {
+        var result = mockMvc.perform(get("/auth/csrf").header("Origin", "http://localhost:5173"))
+                .andExpect(status().isOk())
+                .andExpect(cookie().secure("XSRF-TOKEN", true))
+                .andExpect(jsonPath("$.headerName").value("X-CSRF-TOKEN"))
+                .andReturn();
+        Cookie csrfCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        String tokenFromJson = objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
+        org.assertj.core.api.Assertions.assertThat(tokenFromJson).isNotEqualTo(csrfCookie.getValue());
+        var anotherCsrf = mockMvc.perform(get("/auth/csrf").cookie(csrfCookie))
+                .andExpect(status().isOk()).andReturn();
+        String anotherMaskedToken = objectMapper.readTree(anotherCsrf.getResponse().getContentAsString()).get("token").asText();
+        org.assertj.core.api.Assertions.assertThat(anotherMaskedToken).isNotEqualTo(tokenFromJson);
+        // Neither a raw cookie token on the masked header nor a masked token on
+        // the raw header may accidentally satisfy the CSRF comparison.
+        mockMvc.perform(post("/auth/logout").cookie(accessTokenCookie, csrfCookie)
+                        .header("X-CSRF-TOKEN", csrfCookie.getValue()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/auth/logout").cookie(accessTokenCookie, csrfCookie)
+                        .header("X-XSRF-TOKEN", tokenFromJson))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/auth/logout").header("Origin", "http://localhost:5173")
+                        .cookie(accessTokenCookie, csrfCookie).header("X-CSRF-TOKEN", tokenFromJson))
+                .andExpect(status().isOk()).andExpect(cookie().maxAge("access_token", 0))
+                .andExpect(cookie().maxAge("refresh_token", 0));
+        mockMvc.perform(get("/auth/csrf").header("Origin", "https://untrusted.example"))
+                .andExpect(status().isForbidden());
     }
 }

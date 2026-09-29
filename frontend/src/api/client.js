@@ -2,6 +2,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const AUTH_USER_KEY = "cardapio.authUser";
 
 let refreshPromise = null;
+let cachedCsrfToken = null;
+let cachedCsrfHeader = "X-XSRF-TOKEN";
 
 function saveSession(session) {
   if (session?.username) {
@@ -17,6 +19,8 @@ function saveSession(session) {
 
 function clearSession() {
   localStorage.removeItem(AUTH_USER_KEY);
+  cachedCsrfToken = null;
+  cachedCsrfHeader = "X-XSRF-TOKEN";
 }
 
 function notifySessionExpired() {
@@ -78,10 +82,10 @@ async function doFetch(path, options = {}) {
   }
 
   const match = document.cookie.match(new RegExp('(^| )XSRF-TOKEN=([^;]+)'));
-  const csrfToken = match ? match[2] : null;
+  const csrfToken = cachedCsrfToken || (match ? decodeURIComponent(match[2]) : null);
 
   if (csrfToken && ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())) {
-    requestHeaders["X-XSRF-TOKEN"] = csrfToken;
+    requestHeaders[cachedCsrfToken ? cachedCsrfHeader : "X-XSRF-TOKEN"] = csrfToken;
   }
 
   return fetch(`${API_BASE}${path}`, {
@@ -102,11 +106,13 @@ async function refreshAccessToken() {
         const data = await readResponse(response);
 
         if (!response.ok) {
-          clearSession();
-          notifySessionExpired();
+          if (response.status === 401 || response.status === 404) {
+            clearSession();
+            notifySessionExpired();
+          }
           const message = typeof data === "object" && data?.message
             ? data.message
-            : "Sessao expirada";
+            : "Nao foi possivel renovar a sessao";
           throw new Error(message);
         }
 
@@ -142,6 +148,12 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function initializeCsrfToken() {
+  const csrf = await request("/auth/csrf", { auth: false });
+  cachedCsrfToken = csrf.token;
+  cachedCsrfHeader = csrf.headerName === "X-CSRF-TOKEN" ? "X-CSRF-TOKEN" : "X-XSRF-TOKEN";
+}
+
 export const api = {
   getStoredUser,
   hasStoredUser,
@@ -149,7 +161,7 @@ export const api = {
 
   async login(username, password) {
     clearSession();
-    await request("/auth/csrf", { auth: false });
+    await initializeCsrfToken();
     const session = await request("/auth/login", {
       method: "POST",
       body: { username, password },
@@ -160,14 +172,13 @@ export const api = {
   },
 
   async logout() {
-    try {
-      return await request("/auth/logout", {
-        method: "POST",
-        auth: false
-      });
-    } finally {
-      clearSession();
-    }
+    await initializeCsrfToken();
+    const result = await request("/auth/logout", {
+      method: "POST",
+      auth: false
+    });
+    clearSession();
+    return result;
   },
 
   async validate() {
@@ -176,16 +187,18 @@ export const api = {
       throw new Error("Sessao ausente");
     }
 
-    await request("/auth/csrf", { auth: false });
+    await initializeCsrfToken();
     const session = await request("/auth/validate");
     saveSession(session);
     return session;
   },
 
-  async createFirstAdmin(payload) {
+  async createFirstAdmin(payload, setupToken) {
+    await initializeCsrfToken();
     return request("/setup/admin", {
       method: "POST",
       body: payload,
+      headers: { "X-Setup-Token": setupToken },
       auth: false
     });
   },

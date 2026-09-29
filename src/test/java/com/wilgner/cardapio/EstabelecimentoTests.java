@@ -29,7 +29,7 @@ class EstabelecimentoTests {
     private MockMvc mockMvc;
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(roles = "PLATFORM_ADMIN")
     void adminCadastraEstabelecimentoComProprietario() throws Exception {
         mockMvc.perform(post("/plataforma/estabelecimentos")
                         .with(csrf())
@@ -69,7 +69,9 @@ class EstabelecimentoTests {
                                 }
                                 """.formatted(email, PASSWORD)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken", containsString(".")));
+                .andExpect(jsonPath("$.accessToken").doesNotHaveJsonPath())
+                .andExpect(cookie().httpOnly("access_token", true))
+                .andExpect(cookie().value("access_token", containsString(".")));
     }
 
     @Test
@@ -201,7 +203,7 @@ class EstabelecimentoTests {
 
     private void createEstabelecimento(String username, String email) throws Exception {
         mockMvc.perform(post("/plataforma/estabelecimentos")
-                        .with(user("platform-admin").roles("ADMIN"))
+                        .with(user("platform-admin").roles("PLATFORM_ADMIN"))
                         .with(csrf())
                         .contentType("application/json")
                         .content("""

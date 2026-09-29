@@ -29,6 +29,11 @@ public class ApiExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorDTO> handleMissingRoute(HttpServletRequest request) {
+        return build(HttpStatus.NOT_FOUND, "Recurso nao encontrado", request);
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiErrorDTO> handleBusiness(BusinessException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);

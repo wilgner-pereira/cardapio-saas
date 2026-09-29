@@ -8,12 +8,14 @@ import com.wilgner.cardapio.service.AdminProdutoServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/painel/produtos")
+@PreAuthorize("hasRole('TENANT_ADMIN')")
 public class AdminProdutoController {
 
     private final AdminProdutoServiceImpl produtoService;

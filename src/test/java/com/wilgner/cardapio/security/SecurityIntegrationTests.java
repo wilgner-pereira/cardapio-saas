@@ -61,15 +61,15 @@ public class SecurityIntegrationTests {
         estabelecimento.setAtivo(true);
         estabelecimentoRepository.save(estabelecimento);
 
-        Role userRole = roleRepository.findByRoleName("ROLE_USER").orElseGet(() -> {
+        Role userRole = roleRepository.findByRoleName("ROLE_TENANT_ADMIN").orElseGet(() -> {
             Role r = new Role();
-            r.setRoleName("ROLE_USER");
+            r.setRoleName("ROLE_TENANT_ADMIN");
             return roleRepository.save(r);
         });
 
-        Role adminRole = roleRepository.findByRoleName("ROLE_ADMIN").orElseGet(() -> {
+        Role adminRole = roleRepository.findByRoleName("ROLE_PLATFORM_ADMIN").orElseGet(() -> {
             Role r = new Role();
-            r.setRoleName("ROLE_ADMIN");
+            r.setRoleName("ROLE_PLATFORM_ADMIN");
             return roleRepository.save(r);
         });
 
@@ -172,5 +172,80 @@ public class SecurityIntegrationTests {
                         .cookie(userCookie)
                         .with(csrf()))
                 .andExpect(status().isBadRequest()); 
+    }
+
+    @Test
+    void platformAdminCannotUseAnyTenantController() throws Exception {
+        for (var request : List.of(get("/painel/produtos"), get("/painel/produtos/1"),
+                post("/painel/produtos"), put("/painel/produtos/1"), delete("/painel/produtos/1"),
+                patch("/painel/produtos/1/status"), patch("/painel/produtos/1/ordem"),
+                patch("/painel/categorias/ordem"), get("/painel/estabelecimento"))) {
+            mockMvc.perform(request.cookie(adminCookie).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+        mockMvc.perform(multipart("/painel/storage/upload")
+                        .file(new MockMultipartFile("file", "test.png", "image/png", new byte[]{1}))
+                        .cookie(adminCookie).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void platformRoutesRequirePlatformRoleAndLegacyRolesGrantNoAccess() throws Exception {
+        mockMvc.perform(get("/plataforma/estabelecimentos").cookie(adminCookie)).andExpect(status().isOk());
+        mockMvc.perform(get("/plataforma/estabelecimentos").cookie(userCookie)).andExpect(status().isForbidden());
+        for (String legacy : List.of("ADMIN", "USER")) {
+            for (String path : List.of("/plataforma/estabelecimentos", "/painel/produtos")) {
+                mockMvc.perform(get(path).with(org.springframework.security.test.web.servlet.request
+                                .SecurityMockMvcRequestPostProcessors.user("legacy").roles(legacy)))
+                        .andExpect(status().isForbidden());
+            }
+        }
+    }
+
+    @Test
+    void newTenantRoleCannotReadEditOrDeleteAnotherTenantsProduct() throws Exception {
+        String payload = """
+                {"nome":"Original","descricao":"Teste de isolamento","preco":10,"categoria":"Teste","imageUrl":""}
+                """;
+        var created = mockMvc.perform(post("/painel/produtos").cookie(userCookie).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isCreated()).andReturn();
+        long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        Estabelecimento other = new Estabelecimento();
+        other.setNome("Other tenant");
+        other.setSlug("other-" + UUID.randomUUID());
+        other.setAtivo(true);
+        Usuario otherUser = new Usuario("other-" + UUID.randomUUID(), "test-only-hash",
+                UUID.randomUUID() + "@example.test", estabelecimentoRepository.save(other));
+        otherUser.setRoles(java.util.Set.of(roleRepository.findByRoleName("ROLE_TENANT_ADMIN").orElseThrow()));
+        usuarioRepository.save(otherUser);
+        Cookie otherCookie = new Cookie("access_token", tokenService.generateAccessToken(otherUser));
+
+        mockMvc.perform(get("/painel/produtos/" + id).cookie(otherCookie)).andExpect(status().isNotFound());
+        mockMvc.perform(put("/painel/produtos/" + id).cookie(otherCookie).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(payload.replace("Original", "Changed")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/painel/produtos/" + id).cookie(otherCookie).with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/painel/produtos/" + id).cookie(userCookie))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.nome").value("Original"));
+    }
+
+    @Test
+    void sameJwtUsesCurrentDatabaseRolesIncludingExplicitDualRole() throws Exception {
+        Usuario user = usuarioRepository.findWithRolesAndEstabelecimentoByUsername(
+                tokenService.validateAccessToken(userCookie.getValue())).orElseThrow();
+        Role platform = roleRepository.findByRoleName("ROLE_PLATFORM_ADMIN").orElseThrow();
+        Role tenant = roleRepository.findByRoleName("ROLE_TENANT_ADMIN").orElseThrow();
+        user.setRoles(java.util.Set.of(platform));
+        usuarioRepository.save(user);
+        mockMvc.perform(get("/painel/produtos").cookie(userCookie)).andExpect(status().isForbidden());
+        mockMvc.perform(get("/plataforma/estabelecimentos").cookie(userCookie)).andExpect(status().isOk());
+        user.setRoles(java.util.Set.of(platform, tenant));
+        usuarioRepository.save(user);
+        mockMvc.perform(get("/painel/produtos").cookie(userCookie)).andExpect(status().isOk());
+        mockMvc.perform(get("/plataforma/estabelecimentos").cookie(userCookie)).andExpect(status().isOk());
     }
 }

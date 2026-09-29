@@ -68,8 +68,8 @@ public class AdminEstabelecimentoServiceImpl {
                 estabelecimentoSalvo
         );
 
-        Role roleUser = roleRepository.findByRoleName("ROLE_USER")
-                .orElseThrow(() -> new IllegalStateException("Role padrão ROLE_USER ausente no banco"));
+        Role roleUser = roleRepository.findByRoleName("ROLE_TENANT_ADMIN")
+                .orElseThrow(() -> new IllegalStateException("Role padrão ROLE_TENANT_ADMIN ausente no banco"));
         usuario.setRoles(Set.of(roleUser));
 
         usuarioRepository.save(usuario);
@@ -79,7 +79,10 @@ public class AdminEstabelecimentoServiceImpl {
 
     @Transactional
     public RegisterResponseDTO cadastrarPrimeiroAdministrador(RegisterRequestDTO dto) {
-        if (usuarioRepository.existsByRoleName("ROLE_ADMIN")) {
+        // Serialize first-admin setup across application instances sharing the DB.
+        roleRepository.findByRoleNameForUpdate("ROLE_PLATFORM_ADMIN")
+                .orElseThrow(() -> new IllegalStateException("Role ROLE_PLATFORM_ADMIN ausente no banco"));
+        if (usuarioRepository.existsByRoleName("ROLE_PLATFORM_ADMIN")) {
             throw new ConflictException("Já existe um administrador cadastrado");
         }
 
@@ -109,8 +112,8 @@ public class AdminEstabelecimentoServiceImpl {
                 estabelecimentoSalvo
         );
 
-        Role roleAdmin = roleRepository.findByRoleName("ROLE_ADMIN")
-                .orElseThrow(() -> new IllegalStateException("Role ROLE_ADMIN ausente no banco"));
+        Role roleAdmin = roleRepository.findByRoleName("ROLE_PLATFORM_ADMIN")
+                .orElseThrow(() -> new IllegalStateException("Role ROLE_PLATFORM_ADMIN ausente no banco"));
         usuario.setRoles(Set.of(roleAdmin));
 
         Usuario salvo = usuarioRepository.save(usuario);

@@ -4,7 +4,6 @@ import java.util.List;
 
 public record AuthenticationResponseDTO(
         String message,
-        String accessToken,
         String tokenType,
         Long userId,
         String username,

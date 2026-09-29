@@ -3,6 +3,9 @@ package com.wilgner.cardapio.config;
 import com.wilgner.cardapio.security.RestAccessDeniedHandler;
 import com.wilgner.cardapio.security.RestAuthenticationEntryPoint;
 import com.wilgner.cardapio.security.SecurityFilter;
+import com.wilgner.cardapio.security.RequestRateLimiter;
+import com.wilgner.cardapio.security.RequestRateLimitFilter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wilgner.cardapio.security.SpaCsrfTokenRequestHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
@@ -57,7 +61,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, RequestRateLimiter rateLimiter,
+                                                   ObjectMapper objectMapper) throws Exception {
 
         return http
 
@@ -69,8 +74,6 @@ public class SecurityConfig {
                         .ignoringRequestMatchers(
                                 "/auth/login",
                                 "/auth/refresh",
-                                "/auth/logout",
-                                "/setup/admin",
                                 "/public/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
@@ -103,12 +106,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/validate").authenticated()
                         .requestMatchers("/auth/**").authenticated()
-                        .requestMatchers("/plataforma/**").hasRole("ADMIN")
-                        .requestMatchers("/painel/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/plataforma/**").hasRole("PLATFORM_ADMIN")
+                        .requestMatchers("/painel/**").hasRole("TENANT_ADMIN")
                         .anyRequest().authenticated()
                 )
 
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new RequestRateLimitFilter(rateLimiter, objectMapper), CsrfFilter.class)
                 .build();
     }
 
@@ -124,6 +128,14 @@ public class SecurityConfig {
 
     private RequestMatcher bearerTokenRequestMatcher() {
         return request -> {
+            // Restrict the Bearer exemption to APIs that require authentication.
+            // Public cookie mutations and setup must always enforce CSRF.
+            String path = org.springframework.web.util.UriUtils.decode(
+                    request.getRequestURI().substring(request.getContextPath().length()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            if (!path.startsWith("/painel/") && !path.startsWith("/plataforma/")) {
+                return false;
+            }
             String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
             return StringUtils.hasText(authorizationHeader) && authorizationHeader.startsWith("Bearer ");
         };
@@ -138,7 +150,7 @@ public class SecurityConfig {
                 .filter(origin -> !origin.isBlank())
                 .toList());
 
-        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-XSRF-TOKEN"));
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-XSRF-TOKEN", "X-CSRF-TOKEN", "X-Setup-Token"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.addExposedHeader("Set-Cookie");
 

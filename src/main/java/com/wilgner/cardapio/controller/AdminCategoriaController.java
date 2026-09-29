@@ -5,6 +5,7 @@ import com.wilgner.cardapio.model.dto.product.ProdutoResponseDTO;
 import com.wilgner.cardapio.service.AdminProdutoServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/painel/categorias")
+@PreAuthorize("hasRole('TENANT_ADMIN')")
 public class AdminCategoriaController {
 
     private final AdminProdutoServiceImpl produtoService;

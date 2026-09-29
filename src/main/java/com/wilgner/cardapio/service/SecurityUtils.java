@@ -6,8 +6,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 public class SecurityUtils {
     public static Usuario getUsuarioAutenticado() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if(principal instanceof CustomUserDetails customUserDetails) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof CustomUserDetails customUserDetails) {
             return customUserDetails.getUser();
         }
         return null;

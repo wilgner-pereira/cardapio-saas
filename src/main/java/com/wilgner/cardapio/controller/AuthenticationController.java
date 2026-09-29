@@ -21,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.DefaultCsrfToken;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -63,7 +64,7 @@ public class AuthenticationController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(accessToken, tokenService.getAccessTokenDuration()).toString())
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(refreshToken, tokenService.getRefreshTokenDuration()).toString())
-                .body(toResponse("Autenticado", accessToken, authenticatedUser));
+                .body(toResponse("Autenticado", authenticatedUser, tokenService.getAccessTokenDuration().toMillis()));
     }
 
     @PostMapping("/refresh")
@@ -90,7 +91,7 @@ public class AuthenticationController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(newAccessToken, tokenService.getAccessTokenDuration()).toString())
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(newRefreshToken, tokenService.getRefreshTokenDuration()).toString())
-                .body(toResponse("Token renovado", newAccessToken, user));
+                .body(toResponse("Token renovado", user, tokenService.getAccessTokenDuration().toMillis()));
     }
 
     @PostMapping("/logout")
@@ -106,15 +107,18 @@ public class AuthenticationController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Usuario user = findAuthenticatedUser(userDetails.getUsername());
-        return ResponseEntity.ok(toResponse("Token válido", null, user));
+        return ResponseEntity.ok(toResponse("Token válido", user, 0));
     }
 
     @GetMapping("/csrf")
     public ResponseEntity<CsrfToken> csrf(CsrfToken token) {
-        return ResponseEntity.ok(token);
+        // Keep XOR masking on the JSON token. The dedicated header distinguishes
+        // this representation from the raw cookie-to-header SPA mechanism.
+        CsrfToken responseToken = new DefaultCsrfToken("X-CSRF-TOKEN", token.getParameterName(), token.getToken());
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(responseToken);
     }
 
-    private AuthenticationResponseDTO toResponse(String message, String accessToken, Usuario user) {
+    private AuthenticationResponseDTO toResponse(String message, Usuario user, long accessExpiresInMs) {
         List<String> roles = user.getRoles().stream()
                 .map(role -> role.getRoleName())
                 .sorted()
@@ -122,14 +126,13 @@ public class AuthenticationController {
 
         return new AuthenticationResponseDTO(
                 message,
-                accessToken,
                 "Bearer",
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getEstabelecimento() != null ? user.getEstabelecimento().getSlug() : null,
                 roles,
-                accessToken != null ? tokenService.getAccessTokenDuration().toMillis() : 0
+                accessExpiresInMs
         );
     }
 

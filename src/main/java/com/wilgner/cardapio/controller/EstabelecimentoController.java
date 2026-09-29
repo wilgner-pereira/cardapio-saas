@@ -13,7 +13,7 @@ import org.springframework.validation.annotation.Validated;
 
 @RestController
 @RequestMapping("/painel/estabelecimento")
-@PreAuthorize("hasRole('USER')")
+@PreAuthorize("hasRole('TENANT_ADMIN')")
 @Validated
 public class EstabelecimentoController {
 

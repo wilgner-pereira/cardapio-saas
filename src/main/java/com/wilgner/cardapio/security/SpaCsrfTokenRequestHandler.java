@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.DefaultCsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
@@ -34,6 +35,12 @@ public final class SpaCsrfTokenRequestHandler implements CsrfTokenRequestHandler
 
     @Override
     public String resolveCsrfTokenValue(HttpServletRequest request, CsrfToken csrfToken) {
+        if (StringUtils.hasText(request.getHeader("X-CSRF-TOKEN"))) {
+            // /auth/csrf returns an XOR-masked token for clients on another host.
+            // Decode it before comparison; raw X-XSRF-TOKEN remains supported below.
+            return xor.resolveCsrfTokenValue(request,
+                    new DefaultCsrfToken("X-CSRF-TOKEN", csrfToken.getParameterName(), csrfToken.getToken()));
+        }
         boolean tokenCameFromHeader = StringUtils.hasText(request.getHeader(csrfToken.getHeaderName()));
         CsrfTokenRequestHandler delegate = tokenCameFromHeader ? plain : xor;
 

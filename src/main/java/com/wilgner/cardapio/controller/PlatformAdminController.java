@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/plataforma/admins")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('PLATFORM_ADMIN')")
 public class PlatformAdminController {
 
     private final AdminEstabelecimentoServiceImpl estabelecimentoService;

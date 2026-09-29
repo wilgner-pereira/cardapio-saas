@@ -11,6 +11,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.HashSet;
@@ -44,19 +45,24 @@ public class BootstrapAdminRunner implements CommandLineRunner {
     }
 
     @Override
+    @Transactional
     public void run(String... args) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(email) || !StringUtils.hasText(password)) {
             throw new IllegalStateException("Bootstrap admin habilitado, mas username, email ou password não foram configurados");
         }
 
-        Role roleAdmin = roleRepository.findByRoleName("ROLE_ADMIN")
-                .orElseThrow(() -> new IllegalStateException("Role ROLE_ADMIN ausente no banco"));
+        Role roleAdmin = roleRepository.findByRoleName("ROLE_PLATFORM_ADMIN")
+                .orElseThrow(() -> new IllegalStateException("Role ROLE_PLATFORM_ADMIN ausente no banco"));
 
         String normalizedUsername = username.trim();
         String normalizedEmail = email.trim().toLowerCase();
 
-        Usuario usuario = usuarioRepository.findWithRolesAndEstabelecimentoByUsername(normalizedUsername)
-                .orElseGet(() -> criarUsuarioAdmin(normalizedUsername, normalizedEmail));
+        if (usuarioRepository.existsByUsernameOrEmail(normalizedUsername, normalizedEmail)) {
+            throw new IllegalStateException("Bootstrap admin abortado: username ou email já cadastrado. "
+                    + "Desabilite APP_BOOTSTRAP_ADMIN_ENABLED após o cadastro inicial ou configure uma nova conta.");
+        }
+
+        Usuario usuario = criarUsuarioAdmin(normalizedUsername, normalizedEmail);
 
         var roles = new HashSet<>(usuario.getRoles());
         roles.add(roleAdmin);
