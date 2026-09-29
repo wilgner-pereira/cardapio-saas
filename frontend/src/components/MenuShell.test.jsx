@@ -13,6 +13,42 @@ describe('MenuShell', () => {
     { id: 2, nome: 'Fries', preco: 10, categoria: 'Lanches', ativo: false },
   ];
 
+  function renderScrollableTabs() {
+    render(<MenuShell username="test" products={mockProducts} />);
+    const tabs = screen.getByRole('navigation');
+    Object.defineProperties(tabs, {
+      scrollWidth: { value: 1000 },
+      clientWidth: { value: 400 },
+    });
+    return tabs;
+  }
+
+  it('scrolls horizontally with the wheel and releases page scrolling at the edge', () => {
+    const tabs = renderScrollableTabs();
+    expect(fireEvent.wheel(tabs, { deltaY: 100, cancelable: true })).toBe(false);
+    expect(tabs.scrollLeft).toBe(100);
+    tabs.scrollLeft = 600;
+    expect(fireEvent.wheel(tabs, { deltaY: 100, cancelable: true })).toBe(true);
+    expect(tabs.scrollLeft).toBe(600);
+  });
+
+  it('drags the bar without activating a category and preserves the next normal click', () => {
+    const tabs = renderScrollableTabs();
+    const category = screen.getByRole('button', { name: 'Lanches' });
+    fireEvent.mouseDown(category, { button: 0, clientX: 200 });
+    fireEvent.mouseMove(window, { clientX: 100 });
+    expect(tabs.scrollLeft).toBe(100);
+    expect(tabs).toHaveClass('is-dragging');
+    fireEvent.mouseUp(window);
+    fireEvent.click(category, { detail: 1 });
+    expect(window.HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+    expect(tabs).not.toHaveClass('is-dragging');
+    fireEvent.mouseDown(category, { button: 0, clientX: 100 });
+    fireEvent.mouseUp(window);
+    fireEvent.click(category, { detail: 1 });
+    expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
   it('renders loading state', () => {
     render(<MenuShell username="test" products={[]} loading={true} />);
     expect(screen.getByText('Carregando cardapio')).toBeInTheDocument();

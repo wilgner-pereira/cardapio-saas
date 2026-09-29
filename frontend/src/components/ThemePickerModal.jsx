@@ -4,100 +4,47 @@ import { Check, Loader2, X } from "./icons.js";
 export const THEMES = [
   {
     id: "artesanal",
-    name: "Artesanal",
+    name: "Claro",
     category: "Pratos Especiais",
     dish: "Costela ao Molho Barbecue",
     description: "Acompanha batatas rústicas e farofa",
     price: "R$ 49,90",
-    swatches: ["#fff7e9", "#6f3f1e", "#355f31"],
+    swatches: ["#FFFFFF", "#111111", "#E8EDF2"],
     previewStyles: {
-      boxBg: "#f7ead4",
-      boxBorder: "#d8bc91",
-      sectionTitle: "#6f3f1e",
-      cardBg: "#fff7e9",
-      cardBorder: "#d8bc91",
-      dishName: "#352414",
-      dishDesc: "#755f49",
-      price: "#355f31"
-    }
-  },
-  {
-    id: "brasa",
-    name: "Brasa Suave",
-    category: "Pratos Especiais",
-    dish: "Costela ao Molho Barbecue",
-    description: "Acompanha batatas rústicas e farofa",
-    price: "R$ 49,90",
-    swatches: ["#F7F1E8", "#A3472D", "#2C211B"],
-    previewStyles: {
-      boxBg: "#F7F1E8",
-      boxBorder: "#DCCDBF",
-      sectionTitle: "#A3472D",
-      cardBg: "#FFFCF7",
-      cardBorder: "#DCCDBF",
-      dishName: "#2C211B",
-      dishDesc: "#6F6259",
-      price: "#A3472D"
-    }
-  },
-  {
-    id: "atlantico",
-    name: "Atlântico",
-    category: "Pratos Especiais",
-    dish: "Costela ao Molho Barbecue",
-    description: "Acompanha batatas rústicas e farofa",
-    price: "R$ 49,90",
-    swatches: ["#F3F7F7", "#176B72", "#172B35"],
-    previewStyles: {
-      boxBg: "#F3F7F7",
-      boxBorder: "#C9DADB",
-      sectionTitle: "#176B72",
+      boxBg: "#F7F7F7",
+      boxBorder: "#E1E3E6",
+      sectionTitle: "#111111",
       cardBg: "#FFFFFF",
-      cardBorder: "#C9DADB",
-      dishName: "#172B35",
-      dishDesc: "#5B6B72",
-      price: "#176B72"
-    }
-  },
-  {
-    id: "vinho",
-    name: "Vinho & Marfim",
-    category: "Pratos Especiais",
-    dish: "Costela ao Molho Barbecue",
-    description: "Acompanha batatas rústicas e farofa",
-    price: "R$ 49,90",
-    swatches: ["#F8F2F2", "#7A263A", "#2F2024"],
-    previewStyles: {
-      boxBg: "#F8F2F2",
-      boxBorder: "#DDC9CF",
-      sectionTitle: "#7A263A",
-      cardBg: "#FFFDFD",
-      cardBorder: "#DDC9CF",
-      dishName: "#2F2024",
-      dishDesc: "#716166",
-      price: "#7A263A"
+      cardBorder: "#89939F",
+      dishName: "#111111",
+      dishDesc: "#5F6368",
+      price: "#111111"
     }
   },
   {
     id: "grafite",
-    name: "Grafite & Âmbar",
+    name: "Escuro",
     category: "Pratos Especiais",
     dish: "Costela ao Molho Barbecue",
     description: "Acompanha batatas rústicas e farofa",
     price: "R$ 49,90",
-    swatches: ["#171918", "#D1A05D", "#F4F0E8"],
+    swatches: ["#181B19", "#C89245", "#F3EDE2"],
     previewStyles: {
-      boxBg: "#171918",
-      boxBorder: "#3C403C",
-      sectionTitle: "#D1A05D",
-      cardBg: "#212422",
-      cardBorder: "#3C403C",
-      dishName: "#F4F0E8",
-      dishDesc: "#C8C1B6",
-      price: "#D1A05D"
+      boxBg: "#181B19",
+      boxBorder: "rgba(200, 146, 69, 0.22)",
+      sectionTitle: "#C89245",
+      cardBg: "#252A26",
+      cardBorder: "rgba(200, 146, 69, 0.18)",
+      dishName: "#F3EDE2",
+      dishDesc: "#BDB5A8",
+      price: "#C89245"
     }
   }
 ];
+
+function normalizeSelectableTheme(themeId) {
+  return THEMES.some(theme => theme.id === themeId) ? themeId : "artesanal";
+}
 
 export function ThemePickerModal({
   isOpen = true,
@@ -107,7 +54,7 @@ export function ThemePickerModal({
   onSubmit,
   triggerRef
 }) {
-  const [selectedTheme, setSelectedTheme] = useState(currentTheme || "artesanal");
+  const [selectedTheme, setSelectedTheme] = useState(() => normalizeSelectableTheme(currentTheme));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const modalRef = useRef(null);
@@ -115,7 +62,7 @@ export function ThemePickerModal({
 
   useEffect(() => {
     previouslyFocusedElementRef.current = triggerRef?.current || document.activeElement;
-    setSelectedTheme(currentTheme || "artesanal");
+    setSelectedTheme(normalizeSelectableTheme(currentTheme));
     setError("");
 
     // Foco no card atualmente selecionado ou no modal

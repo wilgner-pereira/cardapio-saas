@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import {
   ArrowDown,
@@ -81,6 +81,7 @@ export function MenuShell({
   themeButtonRef
 }) {
   const [activeCategory, setActiveCategory] = useState("");
+  const categoryTabsRef = useRef(null);
   const isAdmin = mode === "admin";
   const storeName = establishment?.nome || formatStoreName(username);
   const description = establishment?.descricao || "";
@@ -88,6 +89,68 @@ export function MenuShell({
   const categories = Array.from(grouped.keys());
   const selectedCategory = activeCategory && grouped.has(activeCategory) ? activeCategory : categories[0];
   const effectiveTheme = theme || establishment?.tema || "artesanal";
+
+  useEffect(() => {
+    const tabs = categoryTabsRef.current;
+    let drag = null;
+    let suppressClick = false;
+
+    function handleMouseDown(event) {
+      suppressClick = false;
+      if (event.button !== 0 || tabs.scrollWidth <= tabs.clientWidth) return;
+      drag = { x: event.clientX, scrollLeft: tabs.scrollLeft };
+    }
+
+    function handleMouseMove(event) {
+      if (!drag) return;
+      const distance = event.clientX - drag.x;
+      if (!suppressClick && Math.abs(distance) < 5) return;
+      suppressClick = true;
+      tabs.classList.add("is-dragging");
+      event.preventDefault();
+      tabs.scrollLeft = drag.scrollLeft - distance;
+    }
+
+    function stopDragging() {
+      drag = null;
+      tabs.classList.remove("is-dragging");
+    }
+
+    function handleClick(event) {
+      if (!suppressClick || event.detail === 0) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    function handleWheel(event) {
+      // Preserve zoom and native horizontal trackpad gestures.
+      if (event.ctrlKey || event.shiftKey || event.deltaX !== 0) return;
+      const maxScroll = tabs.scrollWidth - tabs.clientWidth;
+      if (maxScroll <= 0) return;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? tabs.clientWidth : 1;
+      const next = Math.max(0, Math.min(maxScroll, tabs.scrollLeft + event.deltaY * unit));
+      if (next === tabs.scrollLeft) return;
+      event.preventDefault();
+      tabs.scrollLeft = next;
+    }
+
+    tabs.addEventListener("mousedown", handleMouseDown);
+    tabs.addEventListener("click", handleClick, true);
+    tabs.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopDragging);
+    window.addEventListener("blur", stopDragging);
+    return () => {
+      stopDragging();
+      tabs.removeEventListener("mousedown", handleMouseDown);
+      tabs.removeEventListener("click", handleClick, true);
+      tabs.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopDragging);
+      window.removeEventListener("blur", stopDragging);
+    };
+  }, []);
 
   useEffect(() => {
     document.body.setAttribute("data-theme", effectiveTheme);
@@ -142,7 +205,7 @@ export function MenuShell({
       </section>
 
       <section className="paper">
-        <nav className="category-tabs" aria-label="Categorias do cardapio">
+        <nav ref={categoryTabsRef} className="category-tabs" aria-label="Categorias do cardapio">
           {categories.map(category => {
             const active = category === selectedCategory;
             return (

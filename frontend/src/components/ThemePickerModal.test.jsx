@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ThemePickerModal, THEMES } from './ThemePickerModal';
 
 describe('ThemePickerModal', () => {
-  it('renders modal with correct title, description and all 5 themes', () => {
+  it('renders modal with the light and dark themes only', () => {
     render(
       <ThemePickerModal
         isOpen={true}
@@ -21,21 +21,28 @@ describe('ThemePickerModal', () => {
       )
     ).toBeInTheDocument();
 
-    expect(THEMES.map(theme => theme.id)).toEqual([
-      'artesanal',
-      'brasa',
-      'atlantico',
-      'vinho',
-      'grafite'
-    ]);
-    expect(screen.getByText('Artesanal')).toBeInTheDocument();
-    expect(screen.getByText('Brasa Suave')).toBeInTheDocument();
-    expect(screen.getByText('Atlântico')).toBeInTheDocument();
-    expect(screen.getByText('Vinho & Marfim')).toBeInTheDocument();
-    expect(screen.getByText('Grafite & Âmbar')).toBeInTheDocument();
+    expect(THEMES.map(theme => theme.id)).toEqual(['artesanal', 'grafite']);
+    expect(screen.getByText('Claro')).toBeInTheDocument();
+    expect(screen.getByText('Escuro')).toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
   });
 
   it('marks current theme as selected', () => {
+    render(
+      <ThemePickerModal
+        isOpen={true}
+        currentTheme="grafite"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    const darkCard = screen.getByRole('radio', { name: /Tema Escuro, selecionado/i });
+    expect(darkCard).toHaveClass('active');
+    expect(darkCard).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('falls back to the light option for a legacy saved theme', () => {
     render(
       <ThemePickerModal
         isOpen={true}
@@ -45,9 +52,8 @@ describe('ThemePickerModal', () => {
       />
     );
 
-    const brasaCard = screen.getByRole('radio', { name: /Tema Brasa Suave, selecionado/i });
-    expect(brasaCard).toHaveClass('active');
-    expect(brasaCard).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: /Tema Claro, selecionado/i }))
+      .toHaveAttribute('aria-checked', 'true');
   });
 
   it('triggers onSelectPreview when another theme is selected', () => {
@@ -62,12 +68,12 @@ describe('ThemePickerModal', () => {
       />
     );
 
-    const atlanticoCard = screen.getByRole('radio', { name: /Tema Atlântico/i });
-    fireEvent.click(atlanticoCard);
+    const darkCard = screen.getByRole('radio', { name: /Tema Escuro/i });
+    fireEvent.click(darkCard);
 
-    expect(onSelectPreview).toHaveBeenCalledWith('atlantico');
-    expect(atlanticoCard).toHaveClass('active');
-    expect(atlanticoCard).toHaveAttribute('aria-checked', 'true');
+    expect(onSelectPreview).toHaveBeenCalledWith('grafite');
+    expect(darkCard).toHaveClass('active');
+    expect(darkCard).toHaveAttribute('aria-checked', 'true');
   });
 
   it('calls onClose when Cancelar or X button is clicked', () => {
@@ -114,7 +120,7 @@ describe('ThemePickerModal', () => {
       />
     );
 
-    const grafiteCard = screen.getByRole('radio', { name: /Tema Grafite & Âmbar/i });
+    const grafiteCard = screen.getByRole('radio', { name: /Tema Escuro/i });
     fireEvent.click(grafiteCard);
 
     const saveButton = screen.getByRole('button', { name: 'Salvar tema' });
