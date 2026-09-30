@@ -98,6 +98,8 @@ public class SecurityConfig {
                                 .maxAgeInSeconds(31536000))
                         .referrerPolicy(referrer -> referrer
                                 .policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'; frame-ancestors 'none';"))
                         .addHeaderWriter(new StaticHeadersWriter(
                                 "Permissions-Policy", "camera=(), microphone=(), geolocation=()"))
                 )

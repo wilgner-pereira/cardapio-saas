@@ -248,4 +248,10 @@ public class SecurityIntegrationTests {
         mockMvc.perform(get("/painel/produtos").cookie(userCookie)).andExpect(status().isOk());
         mockMvc.perform(get("/plataforma/estabelecimentos").cookie(userCookie)).andExpect(status().isOk());
     }
+
+    @Test
+    void respostaContemHeaderContentSecurityPolicy() throws Exception {
+        mockMvc.perform(get("/auth/session"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none';"));
+    }
 }
