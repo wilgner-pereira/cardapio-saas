@@ -248,4 +248,17 @@ public class SecurityIntegrationTests {
         mockMvc.perform(get("/painel/produtos").cookie(userCookie)).andExpect(status().isOk());
         mockMvc.perform(get("/plataforma/estabelecimentos").cookie(userCookie)).andExpect(status().isOk());
     }
+
+    @Test
+    void buscarDinamicoComCategoriaEmBranco_deveSanitizarParaNull() throws Exception {
+        Usuario user = usuarioRepository.findWithRolesAndEstabelecimentoByUsername(
+                tokenService.validateAccessToken(userCookie.getValue())).orElseThrow();
+        String slug = user.getEstabelecimento().getSlug();
+
+        mockMvc.perform(get("/public/" + slug + "/cardapio").param("categoria", "   "))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/painel/produtos").cookie(userCookie).param("categoria", "   "))
+                .andExpect(status().isOk());
+    }
 }
