@@ -17,11 +17,22 @@ import {
   X
 } from "./icons.js";
 
+// ⚡ Bolt Optimization: Cache string normalization results.
+// Normalizing strings via NFD unicode decomposition and regex replacement on every render
+// causes redundant computations. Caching the normalized category ids avoids unnecessary string processing.
+const normalizeCache = new Map();
+
 function normalize(value) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  if (!value) return "";
+  let cached = normalizeCache.get(value);
+  if (cached === undefined) {
+    cached = value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    normalizeCache.set(value, cached);
+  }
+  return cached;
 }
 
 function formatStoreName(username) {
