@@ -150,7 +150,7 @@ describe('MenuShell', () => {
     expect(onCreate).toHaveBeenCalled();
   });
 
-  it('triggers product actions in admin mode', () => {
+  it('triggers product actions in admin mode with product-specific labels and titles', () => {
     const onEdit = vi.fn();
     const onDelete = vi.fn();
 
@@ -164,13 +164,18 @@ describe('MenuShell', () => {
       />
     );
 
-    const editButtons = screen.getAllByLabelText('Editar produto');
-    fireEvent.click(editButtons[0]);
+    const editButton = screen.getByLabelText('Editar Burger');
+    expect(editButton).toHaveAttribute('title', 'Editar Burger');
+    fireEvent.click(editButton);
     expect(onEdit).toHaveBeenCalledWith(mockProducts[0]);
 
-    const deleteButtons = screen.getAllByLabelText('Remover produto');
-    fireEvent.click(deleteButtons[1]);
+    const deleteButton = screen.getByLabelText('Remover Fries');
+    expect(deleteButton).toHaveAttribute('title', 'Remover Fries');
+    fireEvent.click(deleteButton);
     expect(onDelete).toHaveBeenCalledWith(mockProducts[1]);
+
+    expect(screen.getByLabelText('Pausar Burger')).toBeInTheDocument();
+    expect(screen.getByLabelText('Ativar Fries')).toBeInTheDocument();
   });
 
   it('applies data-theme attribute on menu-page and document.body', () => {
