@@ -41,10 +41,11 @@ function formatCurrency(value) {
 }
 
 function groupByCategory(products, includeUnavailable) {
-  // ⚡ Bolt Optimization: Replaced chained .filter().reduce() with a single loop.
-  // This eliminates intermediate array allocation and avoids iterating the products list twice,
-  // speeding up category grouping significantly on large menus (~50-60% improvement).
+  // ⚡ Bolt Optimization: Populates both the Map and categories array in a single loop.
+  // This avoids calling `Array.from(grouped.keys())` on every render/memo computation,
+  // preventing extra array allocations and iteration overhead.
   const groups = new Map();
+  const categories = [];
   for (let i = 0; i < products.length; i++) {
     const product = products[i];
     if (includeUnavailable || product.ativo) {
@@ -53,11 +54,12 @@ function groupByCategory(products, includeUnavailable) {
       if (!list) {
         list = [];
         groups.set(category, list);
+        categories.push(category);
       }
       list.push(product);
     }
   }
-  return groups;
+  return { groups, categories };
 }
 
 export function MenuShell({
@@ -87,9 +89,8 @@ export function MenuShell({
   const isAdmin = mode === "admin";
   const storeName = establishment?.nome || formatStoreName(username);
   const description = establishment?.descricao || "";
-  const grouped = useMemo(() => groupByCategory(products, isAdmin), [isAdmin, products]);
-  const categories = Array.from(grouped.keys());
-  const selectedCategory = activeCategory && grouped.has(activeCategory) ? activeCategory : categories[0];
+  const { groups, categories } = useMemo(() => groupByCategory(products, isAdmin), [isAdmin, products]);
+  const selectedCategory = activeCategory && groups.has(activeCategory) ? activeCategory : categories[0];
   const effectiveTheme = theme || establishment?.tema || "artesanal";
 
   useEffect(() => {
@@ -271,7 +272,7 @@ export function MenuShell({
             </div>
 
             <div className="product-list">
-              {grouped.get(category).map(product => (
+              {groups.get(category).map(product => (
                 <ProductCard
                   key={product.id}
                   product={categoryMoving ? { ...product, _pending: true } : product}
