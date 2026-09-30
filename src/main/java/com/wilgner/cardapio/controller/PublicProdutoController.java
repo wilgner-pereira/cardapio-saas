@@ -22,7 +22,8 @@ public class PublicProdutoController {
     public ResponseEntity<List<ProdutoResponseDTO>> buscarDinamico(
             @PathVariable String slug,
             @RequestParam(required = false) String categoria) {
-        List<ProdutoResponseDTO> lista = produtoService.listarProdutoDinamico(slug, categoria);
+        String categoriaSanitizada = (categoria != null && !categoria.isBlank()) ? categoria.trim() : null;
+        List<ProdutoResponseDTO> lista = produtoService.listarProdutoDinamico(slug, categoriaSanitizada);
         return ResponseEntity.status(HttpStatus.OK).body(lista);
     }
 

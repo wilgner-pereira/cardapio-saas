@@ -63,6 +63,8 @@ jobs:
 
       - name: Review dependency changes
         uses: actions/dependency-review-action@v5
+        # Continue on error if Dependency Graph is disabled on repository settings
+        continue-on-error: true
         with:
           fail-on-severity: high
 
