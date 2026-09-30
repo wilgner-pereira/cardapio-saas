@@ -64,8 +64,7 @@ public class AdminProdutoController {
 
     @GetMapping
     public ResponseEntity<List<ProdutoResponseDTO>> buscarDinamico(@RequestParam(required = false) String categoria) {
-        String categoriaSanitizada = (categoria != null && !categoria.isBlank()) ? categoria.trim() : null;
-        List<ProdutoResponseDTO> lista = produtoService.listarProdutoDinamico(categoriaSanitizada);
+        List<ProdutoResponseDTO> lista = produtoService.listarProdutoDinamico(categoria);
         return ResponseEntity.status(HttpStatus.OK).body(lista);
     }
 }
