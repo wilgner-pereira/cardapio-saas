@@ -18,10 +18,12 @@ vi.mock("./api/client.js", () => ({
     getMyEstablishment: vi.fn(),
     updateCategoryOrder: vi.fn(),
     updateMyEstablishment: vi.fn(),
+    updateMyEstablishmentTheme: vi.fn(),
     uploadImage: vi.fn(),
     discardUnusedImage: vi.fn(),
     updateProduct: vi.fn(),
-    createProduct: vi.fn()
+    createProduct: vi.fn(),
+    getPlatformEstablishments: vi.fn()
   }
 }));
 
@@ -39,6 +41,35 @@ function renderApp(path, { strict = false } = {}) {
 }
 
 describe("route-scoped session validation", () => {
+  it("previews, cancels, retries and persists product image shape", async () => {
+    api.validate.mockResolvedValue(session);
+    api.getAdminProducts.mockResolvedValue([]);
+    api.getMyEstablishment.mockResolvedValue({ nome: "Pizzaria", tema: "artesanal", imagensRedondas: false });
+    const { container } = renderApp("/painel/produtos");
+    await screen.findByText("Nenhum produto cadastrado");
+    const menu = container.querySelector('.menu-page');
+    fireEvent.click(screen.getByRole('button', { name: 'Alterar tema do cardápio' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Redondas' }));
+    expect(menu).toHaveAttribute('data-image-shape', 'round');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(menu).toHaveAttribute('data-image-shape', 'square');
+    expect(api.updateMyEstablishmentTheme).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alterar tema do cardápio' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Redondas' }));
+    api.updateMyEstablishmentTheme.mockRejectedValueOnce(new Error('Falha ao salvar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar aparência' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('radio', { name: 'Redondas' })).toHaveAttribute('aria-checked', 'true');
+    expect(menu).toHaveAttribute('data-image-shape', 'round');
+    api.updateMyEstablishmentTheme.mockResolvedValueOnce({ nome: 'Pizzaria', tema: 'artesanal', imagensRedondas: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar aparência' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(api.updateMyEstablishmentTheme).toHaveBeenLastCalledWith('artesanal', true);
+    expect(menu).toHaveAttribute('data-image-shape', 'round');
+    fireEvent.click(screen.getByRole('button', { name: 'Alterar tema do cardápio' }));
+    expect(screen.getByRole('radio', { name: 'Redondas' })).toHaveAttribute('aria-checked', 'true');
+  });
   it.each(["product", "cover"])("discards only the new upload and restores the previous %s when saving fails", async kind => {
     URL.createObjectURL = vi.fn(() => "blob:http://localhost/new-image");
     URL.revokeObjectURL = vi.fn();
@@ -134,6 +165,7 @@ describe("route-scoped session validation", () => {
     vi.clearAllMocks();
     api.getStoredUser.mockReturnValue(null);
     api.discardUnusedImage.mockResolvedValue(undefined);
+    api.getPlatformEstablishments.mockResolvedValue([]);
   });
 
   it("renders an anonymous public menu without validating or refreshing authentication", async () => {
@@ -181,5 +213,84 @@ describe("route-scoped session validation", () => {
     expect(window.location.pathname).toBe("/painel/produtos");
     expect(api.validate).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(api.getAdminProducts).not.toHaveBeenCalled());
+  });
+});
+
+describe("administrative routing by role", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getStoredUser.mockReturnValue(null);
+    api.getPlatformEstablishments.mockResolvedValue([]);
+    api.getAdminProducts.mockResolvedValue([]);
+    api.getMyEstablishment.mockResolvedValue({ nome: "Pizzaria" });
+  });
+
+  it.each([
+    ["ROLE_PLATFORM_ADMIN", "/plataforma", "Visão geral"],
+    ["ROLE_TENANT_ADMIN", "/painel/produtos", "Nenhum produto cadastrado"]
+  ])("routes %s after login to %s", async (role, path, content) => {
+    api.login.mockResolvedValue({ ...session, roles: [role] });
+    renderApp("/login");
+    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "test-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await screen.findByText(content, { selector: role === "ROLE_PLATFORM_ADMIN" ? "h1" : undefined });
+    expect(window.location.pathname).toBe(path);
+    expect(api.validate).not.toHaveBeenCalled();
+    if (role === "ROLE_PLATFORM_ADMIN") {
+      expect(api.getAdminProducts).not.toHaveBeenCalled();
+      expect(api.getMyEstablishment).not.toHaveBeenCalled();
+    } else expect(api.getPlatformEstablishments).not.toHaveBeenCalled();
+  });
+
+  it("redirects a tenant away from platform routes before calling platform APIs", async () => {
+    api.validate.mockResolvedValue(session);
+    renderApp("/plataforma");
+    await screen.findByText("Nenhum produto cadastrado");
+    expect(window.location.pathname).toBe("/painel/produtos");
+    expect(api.getPlatformEstablishments).not.toHaveBeenCalled();
+  });
+
+  it("redirects a platform admin away from the tenant panel before calling tenant APIs", async () => {
+    api.validate.mockResolvedValue({ ...session, roles: ["ROLE_PLATFORM_ADMIN"] });
+    renderApp("/painel");
+    await screen.findByRole("heading", { name: "Visão geral" });
+    expect(window.location.pathname).toBe("/plataforma");
+    expect(api.getAdminProducts).not.toHaveBeenCalled();
+    expect(api.getMyEstablishment).not.toHaveBeenCalled();
+  });
+
+  it("recovers a platform reload in StrictMode and validates only once", async () => {
+    api.validate.mockResolvedValue({ ...session, roles: ["ROLE_PLATFORM_ADMIN"] });
+    renderApp("/plataforma", { strict: true });
+    await screen.findByRole("heading", { name: "Visão geral" });
+    expect(api.validate).toHaveBeenCalledTimes(1);
+    expect(api.getPlatformEstablishments).toHaveBeenCalledTimes(1);
+  });
+
+  it("redirects an anonymous platform visit to login", async () => {
+    api.validate.mockRejectedValue(Object.assign(new Error("Sessão expirada"), { sessionExpired: true }));
+    renderApp("/plataforma/clientes");
+    await screen.findByRole("heading", { name: "Entrar" });
+    expect(window.location.pathname).toBe("/login");
+    expect(api.getPlatformEstablishments).not.toHaveBeenCalled();
+  });
+
+  it("denies unsupported roles without mounting either administrative page", async () => {
+    api.validate.mockResolvedValue({ ...session, roles: ["ROLE_ADMIN"] });
+    renderApp("/plataforma");
+    expect(await screen.findByRole("alert")).toHaveTextContent("não possui acesso");
+    expect(api.getPlatformEstablishments).not.toHaveBeenCalled();
+    expect(api.getAdminProducts).not.toHaveBeenCalled();
+  });
+
+  it("uses the platform home when both roles are explicitly present", async () => {
+    api.login.mockResolvedValue({ ...session, roles: ["ROLE_TENANT_ADMIN", "ROLE_PLATFORM_ADMIN"] });
+    renderApp("/login");
+    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "test-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await screen.findByRole("heading", { name: "Visão geral" });
+    expect(window.location.pathname).toBe("/plataforma");
   });
 });

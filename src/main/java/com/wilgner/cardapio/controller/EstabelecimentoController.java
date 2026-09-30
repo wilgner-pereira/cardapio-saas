@@ -45,8 +45,10 @@ public class EstabelecimentoController {
 
     @PutMapping("/tema")
     public ResponseEntity<EstabelecimentoResponseDTO> atualizarTema(
-            @RequestParam @NotBlank @Size(max = 20) String tema) {
-        EstabelecimentoResponseDTO response = estabelecimentoService.atualizarTema(tema);
+            @RequestParam @NotBlank @Size(max = 20) String tema,
+            @RequestParam(required = false) @Pattern(regexp = "true|false") String imagensRedondas) {
+        EstabelecimentoResponseDTO response = estabelecimentoService.atualizarTema(
+                tema, imagensRedondas == null ? null : Boolean.valueOf(imagensRedondas));
         return ResponseEntity.ok(response);
     }
 }

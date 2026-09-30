@@ -49,12 +49,15 @@ function normalizeSelectableTheme(themeId) {
 export function ThemePickerModal({
   isOpen = true,
   currentTheme = "artesanal",
+  currentRoundImages = false,
   onSelectPreview,
+  onSelectImageShapePreview,
   onClose,
   onSubmit,
   triggerRef
 }) {
   const [selectedTheme, setSelectedTheme] = useState(() => normalizeSelectableTheme(currentTheme));
+  const [selectedRoundImages, setSelectedRoundImages] = useState(currentRoundImages);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const modalRef = useRef(null);
@@ -62,9 +65,6 @@ export function ThemePickerModal({
 
   useEffect(() => {
     previouslyFocusedElementRef.current = triggerRef?.current || document.activeElement;
-    setSelectedTheme(normalizeSelectableTheme(currentTheme));
-    setError("");
-
     // Foco no card atualmente selecionado ou no modal
     const timer = setTimeout(() => {
       const activeCard = modalRef.current?.querySelector(".theme-card.active");
@@ -81,7 +81,7 @@ export function ThemePickerModal({
         previouslyFocusedElementRef.current.focus();
       }
     };
-  }, [currentTheme, triggerRef]);
+  }, [triggerRef]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -134,10 +134,10 @@ export function ThemePickerModal({
 
     try {
       if (onSubmit) {
-        await onSubmit(selectedTheme);
+        await onSubmit(selectedTheme, selectedRoundImages);
       }
     } catch (err) {
-      setError(err?.message || "Não foi possível salvar o tema selecionado.");
+      setError(err?.message || "Não foi possível salvar a aparência selecionada.");
     } finally {
       setSaving(false);
     }
@@ -178,6 +178,33 @@ export function ThemePickerModal({
           </p>
         </div>
 
+        <fieldset className="image-shape-options">
+          <legend>Fotos dos produtos</legend>
+          <div className="image-shape-grid" role="radiogroup" aria-label="Formato das fotos dos produtos">
+            {[{ round: false, label: "Quadradas" }, { round: true, label: "Redondas" }].map(option => (
+              <button
+                key={option.label}
+                type="button"
+                role="radio"
+                aria-checked={selectedRoundImages === option.round}
+                className={`theme-card ${selectedRoundImages === option.round ? "active" : ""}`}
+                disabled={saving}
+                onClick={() => {
+                  setSelectedRoundImages(option.round);
+                  setError("");
+                  onSelectImageShapePreview?.(option.round);
+                }}
+              >
+                <span className={`image-shape-sample ${option.round ? "round" : ""}`} aria-hidden="true" />
+                <span className="theme-card-header">
+                  <span>{option.label}</span>
+                  {selectedRoundImages === option.round && <Check size={16} aria-hidden="true" />}
+                </span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
         <div className="theme-grid" role="radiogroup" aria-label="Temas disponíveis">
           {THEMES.map((theme) => {
             const isActive = selectedTheme === theme.id;
@@ -189,6 +216,7 @@ export function ThemePickerModal({
                 aria-checked={isActive}
                 tabIndex={0}
                 className={`theme-card ${isActive ? "active" : ""}`}
+                disabled={saving}
                 onClick={() => handleSelect(theme.id)}
                 aria-label={`Tema ${theme.name}${isActive ? ", selecionado" : ""}`}
               >
@@ -277,7 +305,7 @@ export function ThemePickerModal({
             disabled={saving}
           >
             {saving ? <Loader2 className="spin" size={18} /> : null}
-            Salvar tema
+            Salvar aparência
           </button>
         </div>
       </section>

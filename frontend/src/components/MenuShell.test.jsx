@@ -3,6 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MenuShell } from './MenuShell';
 
 describe('MenuShell', () => {
+  it('uses the saved product image shape in public and admin menus and accepts a preview override', () => {
+    const { container, rerender } = render(<MenuShell username="test" establishment={{ imagensRedondas: true }} />);
+    expect(container.querySelector('.menu-page')).toHaveAttribute('data-image-shape', 'round');
+    rerender(<MenuShell username="test" mode="admin" establishment={{ imagensRedondas: true }} roundImages={false} />);
+    expect(container.querySelector('.menu-page')).toHaveAttribute('data-image-shape', 'square');
+    rerender(<MenuShell username="test" />);
+    expect(container.querySelector('.menu-page')).toHaveAttribute('data-image-shape', 'square');
+  });
   it('uses the same sequence for sections and navigation after reorder and keeps anchors', () => {
     const entries = [
       { id: 1, nome: 'Suco', categoria: 'Bebidas', ativo: true, categoriaOrdem: 0 },

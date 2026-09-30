@@ -47,6 +47,9 @@ public class Estabelecimento {
     @Column(nullable = false, length = 20)
     private String tema = "artesanal";
 
+    @Column(name = "imagens_redondas", nullable = false)
+    private boolean imagensRedondas = false;
+
     @Column(nullable = false)
     private Boolean ativo = true;
 
@@ -152,6 +155,14 @@ public class Estabelecimento {
 
     public void setTema(String tema) {
         this.tema = tema;
+    }
+
+    public boolean isImagensRedondas() {
+        return imagensRedondas;
+    }
+
+    public void setImagensRedondas(boolean imagensRedondas) {
+        this.imagensRedondas = imagensRedondas;
     }
 
     public Boolean getAtivo() {

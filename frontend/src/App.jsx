@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client.js";
 import { useAuth } from "./auth/AuthContext.jsx";
+import { ProtectedArea } from "./auth/ProtectedArea.jsx";
+import { getAdminHome, PLATFORM_ADMIN, TENANT_ADMIN } from "./auth/roles.js";
+import { PlatformPage } from "./platform/PlatformPage.jsx";
 import { Loader2, Lock, Plus } from "./components/icons.js";
 import { EstablishmentEditorModal } from "./components/EstablishmentEditorModal.jsx";
 import { MenuShell } from "./components/MenuShell.jsx";
@@ -22,8 +25,8 @@ async function saveWithImage(file, currentUrl, save) {
   }
 }
 
-function navigate(path) {
-  window.history.pushState(null, "", path);
+function navigate(path, { replace = false } = {}) {
+  window.history[replace ? "replaceState" : "pushState"](null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
@@ -32,7 +35,11 @@ function parseRoute(path) {
   if (publicMatch) {
     return { name: "public", username: decodeURIComponent(publicMatch[1]) };
   }
-  if (path.startsWith("/painel")) {
+  const platformMatch = path.match(/^\/plataforma(?:\/(clientes|administradores)(?:\/(\d+))?)?\/?$/);
+  if (platformMatch && !(platformMatch[1] === "administradores" && platformMatch[2])) {
+    return { name: "platform", section: platformMatch[1] || "dashboard", clientId: platformMatch[2] };
+  }
+  if (/^\/painel(?:\/|$)/.test(path)) {
     return { name: "panel" };
   }
   if (path.startsWith("/login")) {
@@ -70,11 +77,17 @@ export function App() {
   }, []);
 
   if (route.name === "login") {
-    return <LoginPage onSuccess={() => navigate("/painel/produtos")} />;
+    return <LoginPage onSuccess={session => navigate(getAdminHome(session.roles), { replace: true })} />;
   }
 
   if (route.name === "panel") {
-    return <AdminMenuPage />;
+    return <ProtectedArea role={TENANT_ADMIN} onNavigate={navigate}><AdminMenuPage /></ProtectedArea>;
+  }
+
+  if (route.name === "platform") {
+    return <ProtectedArea role={PLATFORM_ADMIN} onNavigate={navigate}>
+      <PlatformPage section={route.section} clientId={route.clientId} onNavigate={navigate} />
+    </ProtectedArea>;
   }
 
   if (route.name === "home") {
@@ -151,7 +164,7 @@ function HomePage() {
 
 function AdminMenuPage() {
   const auth = useAuth();
-  const validationStartedRef = useRef(false);
+  const dataLoadStartedRef = useRef(false);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -159,6 +172,7 @@ function AdminMenuPage() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [establishment, setEstablishment] = useState(null);
   const [previewTheme, setPreviewTheme] = useState(null);
+  const [previewRoundImages, setPreviewRoundImages] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [establishmentModalOpen, setEstablishmentModalOpen] = useState(false);
   const [heroPreview, setHeroPreview] = useState(null);
@@ -169,6 +183,7 @@ function AdminMenuPage() {
 
   const savedTheme = establishment?.tema || "artesanal";
   const effectiveTheme = previewTheme ?? savedTheme;
+  const savedRoundImages = establishment?.imagensRedondas ?? false;
 
   const applyAdminSnapshot = useCallback((nextProducts, nextEstablishment) => {
     setProducts(nextProducts);
@@ -201,23 +216,11 @@ function AdminMenuPage() {
   }, [applyAdminSnapshot]);
 
   useEffect(() => {
-    if (auth.status === "loading") {
-      if (!validationStartedRef.current) {
-        validationStartedRef.current = true;
-        void auth.validate();
-      }
-      return;
+    if (auth.status === "authenticated" && !dataLoadStartedRef.current) {
+      dataLoadStartedRef.current = true;
+      void loadAdminData();
     }
-
-    if (auth.status === "anonymous") {
-      navigate("/login");
-      return;
-    }
-
-    if (auth.status === "authenticated") {
-      loadAdminData();
-    }
-  }, [auth.status, auth.validate, loadAdminData]);
+  }, [auth.status, loadAdminData]);
 
   function handleSubmit(payload, imageFile) {
     setActionError("");
@@ -474,29 +477,13 @@ function AdminMenuPage() {
     navigate("/login");
   }
 
-  if (auth.status === "loading") {
-    return (
-      <div className="center-screen">
-        <Loader2 className="spin" size={28} />
-      </div>
-    );
-  }
-
-  if (auth.status === "unavailable") {
-    return (
-      <div className="center-screen">
-        <p role="alert">{auth.error}</p>
-        <button className="primary-action" onClick={() => auth.validate()}>Tentar novamente</button>
-      </div>
-    );
-  }
-
   return (
     <>
       <MenuShell
         username={establishment?.slug || auth.estabelecimentoSlug || auth.username || "meu-cardapio"}
         establishment={heroPreview === null ? establishment : { ...establishment, heroImageUrl: heroPreview }}
         theme={effectiveTheme}
+        roundImages={previewRoundImages ?? savedRoundImages}
         mode="admin"
         products={products}
         loading={loading}
@@ -512,6 +499,7 @@ function AdminMenuPage() {
         }}
         onEditTheme={() => {
           setPreviewTheme(null);
+          setPreviewRoundImages(null);
           setThemeModalOpen(true);
         }}
         onEditEstablishment={() => setEstablishmentModalOpen(true)}
@@ -562,24 +550,20 @@ function AdminMenuPage() {
         <ThemePickerModal
           isOpen={themeModalOpen}
           currentTheme={savedTheme}
+          currentRoundImages={savedRoundImages}
           onSelectPreview={(themeId) => setPreviewTheme(themeId)}
+          onSelectImageShapePreview={setPreviewRoundImages}
           onClose={() => {
             setPreviewTheme(null);
+            setPreviewRoundImages(null);
             setThemeModalOpen(false);
           }}
-          onSubmit={async (selectedTheme) => {
-            const previousTheme = savedTheme;
-            setEstablishment(current => ({ ...current, tema: selectedTheme }));
+          onSubmit={async (selectedTheme, selectedRoundImages) => {
+            const updated = await api.updateMyEstablishmentTheme(selectedTheme, selectedRoundImages);
+            setEstablishment(updated);
             setPreviewTheme(null);
-            try {
-              const updated = await api.updateMyEstablishmentTheme(selectedTheme);
-              setEstablishment(updated);
-              setThemeModalOpen(false);
-            } catch (err) {
-              setEstablishment(current => ({ ...current, tema: previousTheme }));
-              setPreviewTheme(selectedTheme);
-              throw err;
-            }
+            setPreviewRoundImages(null);
+            setThemeModalOpen(false);
           }}
           triggerRef={themeButtonRef}
         />
@@ -601,8 +585,9 @@ function LoginPage({ onSuccess }) {
     setError("");
 
     try {
-      await auth.login({ username, password });
-      onSuccess();
+      const session = await auth.login({ username, password });
+      if (!getAdminHome(session.roles)) throw new Error("Sua conta não possui acesso a uma área administrativa.");
+      onSuccess(session);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -617,8 +602,8 @@ function LoginPage({ onSuccess }) {
           <Lock size={22} />
         </button>
         <div>
-          <span className="brand-kicker">Painel do estabelecimento</span>
-          <h1>Cardapio vivo, editado no proprio visual.</h1>
+          <span className="brand-kicker">Cardápio SaaS</span>
+          <h1>Seu cardápio e sua gestão em um só lugar.</h1>
         </div>
       </section>
 
@@ -649,7 +634,7 @@ function LoginPage({ onSuccess }) {
             />
           </label>
 
-          {error && <p className="form-error">{error}</p>}
+          {error && <p className="form-error" role="alert">{error}</p>}
 
           <button className="primary-action" type="submit" disabled={loading}>
             {loading ? <Loader2 className="spin" size={18} /> : null}

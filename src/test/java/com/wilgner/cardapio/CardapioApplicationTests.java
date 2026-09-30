@@ -365,6 +365,51 @@ class CardapioApplicationTests {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void productImageShapeIsPersistentTenantScopedAndPreservedByLegacyThemeUpdates() throws Exception {
+        String owner = uniqueUsername("shape");
+        String other = uniqueUsername("othershape");
+        Cookie[] cookies = registerAndLogin(owner);
+        registerAndLogin(other);
+
+        mockMvc.perform(get("/painel/estabelecimento").cookie(cookies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagensRedondas").value(false));
+        mockMvc.perform(get("/public/{slug}/cardapio/info", owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagensRedondas").value(false));
+
+        mockMvc.perform(put("/painel/estabelecimento/tema").cookie(cookies)
+                        .param("tema", "artesanal").param("imagensRedondas", "true"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/painel/estabelecimento/tema").with(csrf()).cookie(cookies)
+                        .param("tema", "artesanal").param("imagensRedondas", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagensRedondas").value(true));
+        mockMvc.perform(get("/public/{slug}/cardapio/info", owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagensRedondas").value(true));
+        mockMvc.perform(get("/public/{slug}/cardapio/info", other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagensRedondas").value(false));
+
+        mockMvc.perform(put("/painel/estabelecimento/tema").with(csrf()).cookie(cookies)
+                        .param("tema", "grafite"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagensRedondas").value(true));
+        mockMvc.perform(put("/painel/estabelecimento/tema").with(csrf()).cookie(cookies)
+                        .param("tema", "grafite").param("imagensRedondas", "invalid"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/painel/estabelecimento").cookie(cookies))
+                .andExpect(jsonPath("$.imagensRedondas").value(true));
+
+        mockMvc.perform(put("/painel/estabelecimento/tema").with(csrf()).cookie(cookies)
+                        .param("tema", "grafite").param("imagensRedondas", "false"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/public/{slug}/cardapio/info", owner))
+                .andExpect(jsonPath("$.imagensRedondas").value(false));
+    }
+
     private Cookie[] registerAndLogin(String username) throws Exception {
         register(username);
         MvcResult login = mockMvc.perform(post("/auth/login")

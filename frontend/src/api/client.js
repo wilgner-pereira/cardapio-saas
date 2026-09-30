@@ -170,7 +170,11 @@ async function request(path, options = {}) {
       clearSession();
       notifySessionExpired();
     }
-    throw Object.assign(new Error(message), { sessionExpired: auth && response.status === 401 });
+    throw Object.assign(new Error(message), {
+      sessionExpired: auth && response.status === 401,
+      status: response.status,
+      fieldErrors: typeof data === "object" ? data?.fieldErrors || {} : {}
+    });
   }
 
   return data;
@@ -277,6 +281,34 @@ export const api = {
     return request("/painel/produtos");
   },
 
+  getPlatformEstablishments() {
+    return request("/plataforma/estabelecimentos");
+  },
+
+  getPlatformEstablishment(id) {
+    return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}`);
+  },
+
+  createPlatformEstablishment(payload) {
+    return request("/plataforma/estabelecimentos", { method: "POST", body: payload });
+  },
+
+  activatePlatformEstablishment(id) {
+    return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}/ativar`, { method: "PATCH" });
+  },
+
+  deactivatePlatformEstablishment(id) {
+    return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}/desativar`, { method: "PATCH" });
+  },
+
+  deletePlatformEstablishment(id) {
+    return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  createPlatformAdmin(payload) {
+    return request("/plataforma/admins", { method: "POST", body: payload });
+  },
+
   async getMyEstablishment() {
     return request("/painel/estabelecimento");
   },
@@ -294,8 +326,9 @@ export const api = {
     });
   },
 
-  async updateMyEstablishmentTheme(tema) {
-    return request(`/painel/estabelecimento/tema?tema=${encodeURIComponent(tema)}`, {
+  async updateMyEstablishmentTheme(tema, imagensRedondas) {
+    const shapeParam = imagensRedondas === undefined ? "" : `&imagensRedondas=${imagensRedondas}`;
+    return request(`/painel/estabelecimento/tema?tema=${encodeURIComponent(tema)}${shapeParam}`, {
       method: "PUT"
     });
   },

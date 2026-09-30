@@ -45,6 +45,20 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     vi.unstubAllGlobals();
   });
 
+  it('saves theme and image shape through the existing cookie and CSRF flow', async () => {
+    await loginInMemory();
+    fetchMock.mockImplementation(() => Promise.resolve(response({ tema: 'grafite', imagensRedondas: true })));
+    await api.updateMyEstablishmentTheme('grafite', true);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(url).searchParams.get('imagensRedondas')).toBe('true');
+    expect(options.method).toBe('PUT');
+    expect(options.credentials).toBe('include');
+    expect(options.headers['X-XSRF-TOKEN']).toBe('test-csrf');
+    fetchMock.mockClear();
+    await api.updateMyEstablishmentTheme('artesanal');
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.has('imagensRedondas')).toBe(false);
+  });
+
   it("logs in, validates, refreshes a rejected request and logs out without a JSON JWT", async () => {
     fetchMock
       .mockResolvedValueOnce(response(session))
@@ -249,5 +263,47 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     expect(options.credentials).toBe("include");
     expect(options.headers["X-XSRF-TOKEN"]).toBe("test-csrf");
     expect(JSON.parse(options.body)).toEqual({ url: "https://example.com/new-upload.png" });
+  });
+
+  it.each([
+    ["getPlatformEstablishments", [], "/plataforma/estabelecimentos", "GET"],
+    ["getPlatformEstablishment", [12], "/plataforma/estabelecimentos/12", "GET"],
+    ["createPlatformEstablishment", [{ nome: "Novo cliente" }], "/plataforma/estabelecimentos", "POST"],
+    ["activatePlatformEstablishment", [12], "/plataforma/estabelecimentos/12/ativar", "PATCH"],
+    ["deactivatePlatformEstablishment", [12], "/plataforma/estabelecimentos/12/desativar", "PATCH"],
+    ["deletePlatformEstablishment", [12], "/plataforma/estabelecimentos/12", "DELETE"],
+    ["createPlatformAdmin", [{ username: "operator" }], "/plataforma/admins", "POST"]
+  ])("%s uses the shared cookie and CSRF request flow", async (method, args, path, verb) => {
+    await loginInMemory();
+    fetchMock.mockResolvedValueOnce(verb === "DELETE" ? new Response(null, { status: 204 }) : response({ id: 12 }));
+    await api[method](...args);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toBe(path);
+    expect(options.method).toBe(verb);
+    expect(options.credentials).toBe("include");
+    expect(options.headers).not.toHaveProperty("Authorization");
+    if (verb !== "GET") expect(options.headers["X-XSRF-TOKEN"]).toBe("test-csrf");
+    if (verb === "POST") expect(JSON.parse(options.body)).toEqual(args[0]);
+  });
+
+  it("returns platform validation messages and field errors to the form", async () => {
+    await loginInMemory();
+    fetchMock.mockResolvedValueOnce(response({ message: "Dados inválidos", fieldErrors: { username: "Username inválido" } }, 400));
+    await expect(api.createPlatformEstablishment({})).rejects.toMatchObject({
+      message: "Dados inválidos", status: 400, fieldErrors: { username: "Username inválido" }, sessionExpired: false
+    });
+  });
+
+  it("refreshes a platform mutation after 401 and retries with the renewed CSRF token", async () => {
+    await loginInMemory();
+    fetchMock.mockResolvedValueOnce(response({}, 401))
+      .mockResolvedValueOnce(response({ ...session, roles: ["ROLE_PLATFORM_ADMIN"] }))
+      .mockResolvedValueOnce(response({ token: "renewed", headerName: "X-CSRF-TOKEN" }))
+      .mockResolvedValueOnce(response({ id: 12, ativo: false }));
+    await expect(api.deactivatePlatformEstablishment(12)).resolves.toMatchObject({ ativo: false });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+      "/plataforma/estabelecimentos/12/desativar", "/auth/refresh", "/auth/csrf", "/plataforma/estabelecimentos/12/desativar"
+    ]);
+    expect(fetchMock.mock.calls[3][1].headers["X-CSRF-TOKEN"]).toBe("renewed");
   });
 });

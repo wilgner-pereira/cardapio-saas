@@ -25,6 +25,7 @@ public class EstabelecimentoMapper {
                 estabelecimento.getLogoUrl(),
                 estabelecimento.getHeroImageUrl(),
                 estabelecimento.getTema(),
+                estabelecimento.isImagensRedondas(),
                 estabelecimento.getAtivo(),
                 estabelecimento.getCriadoEm(),
                 estabelecimento.getAtualizadoEm()

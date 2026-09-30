@@ -67,7 +67,8 @@ public class PublicProdutoServiceImpl {
                 estabelecimento.getTelefone(),
                 estabelecimento.getEndereco(),
                 estabelecimento.getEmailContato(),
-                estabelecimento.getTema()
+                estabelecimento.getTema(),
+                estabelecimento.isImagensRedondas()
         );
     }
 
@@ -80,6 +81,7 @@ public class PublicProdutoServiceImpl {
             String telefone,
             String endereco,
             String emailContato,
-            String tema
+            String tema,
+            boolean imagensRedondas
     ) {}
 }

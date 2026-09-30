@@ -1,0 +1,1 @@
+ALTER TABLE estabelecimento ADD COLUMN imagens_redondas BOOLEAN NOT NULL DEFAULT FALSE;

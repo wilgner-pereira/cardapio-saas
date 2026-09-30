@@ -15,6 +15,7 @@ public record EstabelecimentoResponseDTO(
         String logoUrl,
         String heroImageUrl,
         String tema,
+        boolean imagensRedondas,
         Boolean ativo,
         LocalDateTime criadoEm,
         LocalDateTime atualizadoEm

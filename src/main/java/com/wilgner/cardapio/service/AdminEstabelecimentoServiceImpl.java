@@ -130,19 +130,19 @@ public class AdminEstabelecimentoServiceImpl {
 
     @Transactional
     public EstabelecimentoResponseDTO obterEstabelecimento(Long id) {
-        Estabelecimento estabelecimento = estabelecimentoRepository.findById(id)
+        Estabelecimento estabelecimento = estabelecimentoRepository.findPlatformClientById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
         return estabelecimentoMapper.toDTO(estabelecimento);
     }
 
     @Transactional
     public List<EstabelecimentoResumoDTO> listarEstabelecimentos() {
-        return estabelecimentoMapper.toResumoDTOList(estabelecimentoRepository.findAll());
+        return estabelecimentoMapper.toResumoDTOList(estabelecimentoRepository.findPlatformClients());
     }
 
     @Transactional
     public EstabelecimentoResponseDTO ativarDesativarEstabelecimento(Long id, Boolean ativo) {
-        Estabelecimento estabelecimento = estabelecimentoRepository.findById(id)
+        Estabelecimento estabelecimento = estabelecimentoRepository.findPlatformClientById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
 
         estabelecimento.setAtivo(ativo);
@@ -157,7 +157,7 @@ public class AdminEstabelecimentoServiceImpl {
 
     @Transactional
     public void deletarEstabelecimento(Long id) {
-        Estabelecimento estabelecimento = estabelecimentoRepository.findById(id)
+        Estabelecimento estabelecimento = estabelecimentoRepository.findPlatformClientById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
 
         estabelecimentoRepository.delete(estabelecimento);

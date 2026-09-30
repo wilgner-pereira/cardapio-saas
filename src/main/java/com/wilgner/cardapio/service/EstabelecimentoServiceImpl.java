@@ -63,11 +63,14 @@ public class EstabelecimentoServiceImpl {
     }
 
     @Transactional
-    public EstabelecimentoResponseDTO atualizarTema(String tema) {
+    public EstabelecimentoResponseDTO atualizarTema(String tema, Boolean imagensRedondas) {
         CardapioTema temaValidado = CardapioTema.fromValor(tema);
         Estabelecimento estabelecimento = getEstabelecimentoParaAtualizar();
 
         estabelecimento.setTema(temaValidado.getValor());
+        if (imagensRedondas != null) {
+            estabelecimento.setImagensRedondas(imagensRedondas);
+        }
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
 
         return estabelecimentoMapper.toDTO(atualizado);

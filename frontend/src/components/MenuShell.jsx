@@ -65,6 +65,7 @@ export function MenuShell({
   establishment,
   products = [],
   theme,
+  roundImages,
   mode = "public",
   loading = false,
   error = "",
@@ -170,7 +171,7 @@ export function MenuShell({
   }
 
   return (
-    <main className="menu-page" data-theme={effectiveTheme}>
+    <main className="menu-page" data-theme={effectiveTheme} data-image-shape={(roundImages ?? establishment?.imagensRedondas) ? "round" : "square"}>
       <MenuHero name={storeName} imageUrl={establishment?.heroImageUrl} isAdmin={isAdmin}>
         {isAdmin && (
           <div className="admin-strip">
@@ -301,6 +302,10 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
 
   return (
     <article className={`product-card ${hasImage ? "has-image" : ""} ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""} ${product._pending ? "pending" : ""}`}>
+      {hasImage && (
+        <ProductImage imageUrl={product.imageUrl} name={product.nome} />
+      )}
+
       <div className="product-copy">
         <div className="product-title-row">
           <h3>{product.nome}</h3>
@@ -310,10 +315,6 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
         <p>{product.descricao}</p>
         <strong>{formatCurrency(product.preco)}</strong>
       </div>
-
-      {hasImage && (
-        <ProductImage imageUrl={product.imageUrl} name={product.nome} />
-      )}
 
       {isAdmin && (
         <div className="product-actions" aria-label={`Acoes de ${product.nome}`}>

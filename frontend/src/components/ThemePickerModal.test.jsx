@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ThemePickerModal, THEMES } from './ThemePickerModal';
 
 describe('ThemePickerModal', () => {
@@ -24,7 +24,8 @@ describe('ThemePickerModal', () => {
     expect(THEMES.map(theme => theme.id)).toEqual(['artesanal', 'grafite']);
     expect(screen.getByText('Claro')).toBeInTheDocument();
     expect(screen.getByText('Escuro')).toBeInTheDocument();
-    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(within(screen.getByRole('radiogroup', { name: 'Temas disponíveis' })).getAllByRole('radio')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: 'Quadradas' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('marks current theme as selected', () => {
@@ -109,7 +110,7 @@ describe('ThemePickerModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onSubmit with selected theme when Salvar tema is clicked', async () => {
+  it('calls onSubmit with selected theme and image shape when saving appearance', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <ThemePickerModal
@@ -122,12 +123,13 @@ describe('ThemePickerModal', () => {
 
     const grafiteCard = screen.getByRole('radio', { name: /Tema Escuro/i });
     fireEvent.click(grafiteCard);
+    fireEvent.click(screen.getByRole('radio', { name: 'Redondas' }));
 
-    const saveButton = screen.getByRole('button', { name: 'Salvar tema' });
+    const saveButton = screen.getByRole('button', { name: 'Salvar aparência' });
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('grafite');
+      expect(onSubmit).toHaveBeenCalledWith('grafite', true);
     });
   });
 
@@ -142,11 +144,32 @@ describe('ThemePickerModal', () => {
       />
     );
 
-    const saveButton = screen.getByRole('button', { name: 'Salvar tema' });
+    const saveButton = screen.getByRole('button', { name: 'Salvar aparência' });
     fireEvent.click(saveButton);
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Erro ao salvar no servidor');
     });
+  });
+
+  it('previews the image shape independently of the theme and initializes the saved shape', () => {
+    const onSelectImageShapePreview = vi.fn();
+    const onSelectPreview = vi.fn();
+    render(<ThemePickerModal currentRoundImages onSelectImageShapePreview={onSelectImageShapePreview} onSelectPreview={onSelectPreview} />);
+    expect(screen.getByRole('radio', { name: 'Redondas' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: 'Quadradas' }));
+    expect(onSelectImageShapePreview).toHaveBeenCalledWith(false);
+    expect(onSelectPreview).not.toHaveBeenCalled();
+  });
+
+  it('keeps the selected draft when the parent updates saved props or the focus reference', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(<ThemePickerModal currentTheme="artesanal" currentRoundImages={false} onSubmit={onSubmit} triggerRef={{ current: null }} />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Redondas' }));
+    expect(screen.getByRole('radio', { name: 'Redondas' })).toHaveAttribute('aria-checked', 'true');
+    rerender(<ThemePickerModal currentTheme="grafite" currentRoundImages={false} onSubmit={onSubmit} triggerRef={{ current: null }} />);
+    expect(screen.getByRole('radio', { name: 'Redondas' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar aparência' }));
+    expect(onSubmit).toHaveBeenCalledWith('artesanal', true);
   });
 });
