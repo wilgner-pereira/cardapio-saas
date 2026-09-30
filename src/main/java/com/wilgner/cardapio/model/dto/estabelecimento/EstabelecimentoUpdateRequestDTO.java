@@ -23,6 +23,11 @@ public record EstabelecimentoUpdateRequestDTO(
 
         @Size(max = 255, message = "Email de contato deve ter no máximo 255 caracteres")
         @Email(message = "Email de contato inválido")
-        String emailContato
+        String emailContato,
+
+        @Size(max = 2048, message = "URL da capa deve ter no máximo 2048 caracteres")
+        @Pattern(regexp = "^(|https?://\\S+)$", message = "URL da capa inválida")
+        @org.hibernate.validator.constraints.URL(message = "URL da capa inválida")
+        String heroImageUrl
 ) {
 }

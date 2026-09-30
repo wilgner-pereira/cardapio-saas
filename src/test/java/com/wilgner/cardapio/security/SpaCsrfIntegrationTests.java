@@ -20,9 +20,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -36,6 +37,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 class SpaCsrfIntegrationTests {
+
+    @Test
+    void sessionBootstrapReturnsOnlyStateForAnonymousAndKeepsProtectedRoutesSecured() throws Exception {
+        mockMvc.perform(get("/auth/session"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.authenticated").value(false))
+                .andExpect(jsonPath("$.refreshAvailable").value(false)).andExpect(jsonPath("$.session").isEmpty())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"));
+        mockMvc.perform(get("/auth/session").cookie(new Cookie("refresh_token", "present")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.refreshAvailable").value(true))
+                .andExpect(jsonPath("$.session").isEmpty());
+        mockMvc.perform(get("/auth/session").cookie(accessTokenCookie))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.session.userId").isNumber()).andExpect(jsonPath("$.session.accessToken").doesNotExist());
+        mockMvc.perform(get("/auth/validate")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/painel/produtos")).andExpect(status().isUnauthorized());
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -83,22 +100,34 @@ class SpaCsrfIntegrationTests {
     }
 
     @Test
-    void patchComValorBrutoDoCookieNoHeaderDevePermitirEdicoesSequenciais() throws Exception {
+    void tokenDoCookiePermaneceValidoAposGetsEEdicoesSequenciaisEParalelas() throws Exception {
         MvcResult csrfResult = mockMvc.perform(get("/auth/csrf"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists("XSRF-TOKEN"))
                 .andReturn();
         Cookie csrfCookie = csrfResult.getResponse().getCookie("XSRF-TOKEN");
 
-        MvcResult firstPatchResult = patchWithCsrf(csrfCookie);
+        MvcResult validate = mockMvc.perform(get("/auth/validate").cookie(accessTokenCookie, csrfCookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertCsrfCookieWasNotRotated(validate, csrfCookie);
+        MvcResult products = mockMvc.perform(get("/painel/produtos").cookie(accessTokenCookie, csrfCookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertCsrfCookieWasNotRotated(products, csrfCookie);
 
-        Cookie rotatedCsrfCookie = Arrays.stream(firstPatchResult.getResponse().getCookies())
-                .filter(cookie -> "XSRF-TOKEN".equals(cookie.getName()))
-                .filter(cookie -> cookie.getMaxAge() != 0 && !cookie.getValue().isBlank())
-                .reduce((first, last) -> last)
-                .orElse(csrfCookie);
+        patchWithCsrf(csrfCookie);
+        patchWithCsrf(csrfCookie);
 
-        patchWithCsrf(rotatedCsrfCookie);
+        List<CompletableFuture<MvcResult>> parallel = List.of(
+                CompletableFuture.supplyAsync(() -> patchUnchecked(csrfCookie)),
+                CompletableFuture.supplyAsync(() -> patchUnchecked(csrfCookie))
+        );
+        CompletableFuture.allOf(parallel.toArray(CompletableFuture[]::new)).join();
+        for (CompletableFuture<MvcResult> call : parallel) {
+            org.assertj.core.api.Assertions.assertThat(call.join().getResponse().getStatus()).isEqualTo(404);
+            assertCsrfCookieWasNotRotated(call.join(), csrfCookie);
+        }
     }
 
     private MvcResult patchWithCsrf(Cookie csrfCookie) throws Exception {
@@ -109,6 +138,22 @@ class SpaCsrfIntegrationTests {
                         .content(objectMapper.writeValueAsString(new ProdutoOrdemRequestDTO(0))))
                 .andExpect(status().isNotFound())
                 .andReturn();
+    }
+
+    private void assertCsrfCookieWasNotRotated(MvcResult result, Cookie expected) {
+        Cookie responseCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        if (responseCookie != null) {
+            org.assertj.core.api.Assertions.assertThat(responseCookie.getValue()).isEqualTo(expected.getValue());
+            org.assertj.core.api.Assertions.assertThat(responseCookie.getMaxAge()).isNotZero();
+        }
+    }
+
+    private MvcResult patchUnchecked(Cookie csrfCookie) {
+        try {
+            return patchWithCsrf(csrfCookie);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
     }
 
     @Test
@@ -130,7 +175,7 @@ class SpaCsrfIntegrationTests {
     void csrfJsonWorksForCrossOriginSpaLogoutAndPreservesCookieAttributes() throws Exception {
         var result = mockMvc.perform(get("/auth/csrf").header("Origin", "http://localhost:5173"))
                 .andExpect(status().isOk())
-                .andExpect(cookie().secure("XSRF-TOKEN", true))
+                .andExpect(cookie().secure("XSRF-TOKEN", false))
                 .andExpect(jsonPath("$.headerName").value("X-CSRF-TOKEN"))
                 .andReturn();
         Cookie csrfCookie = result.getResponse().getCookie("XSRF-TOKEN");

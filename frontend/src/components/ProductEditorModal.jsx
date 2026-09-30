@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ImagePlus, Loader2, X } from "./icons.js";
+import { IMAGE_ACCEPT, validateImage } from "../api/uploadValidation.js";
 
 const emptyForm = {
   nome: "",
@@ -40,6 +41,7 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
     setError("");
 
     try {
+      if (file) validateImage(file);
       await onSubmit({
         ...form,
         preco: Number(String(form.preco).replace(",", ".")),
@@ -87,7 +89,7 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
           <label className="file-field">
             <ImagePlus size={20} />
             <span>{file ? file.name : product?.imageUrl ? "Trocar imagem" : "Enviar imagem"}</span>
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => setFile(event.target.files?.[0] || null)} />
+            <input type="file" accept={IMAGE_ACCEPT} onChange={event => setFile(event.target.files?.[0] || null)} />
           </label>
 
           {error && <p className="form-error">{error}</p>}

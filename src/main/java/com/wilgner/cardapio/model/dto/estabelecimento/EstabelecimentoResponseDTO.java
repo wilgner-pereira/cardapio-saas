@@ -13,6 +13,7 @@ public record EstabelecimentoResponseDTO(
         String endereco,
         String emailContato,
         String logoUrl,
+        String heroImageUrl,
         String tema,
         Boolean ativo,
         LocalDateTime criadoEm,

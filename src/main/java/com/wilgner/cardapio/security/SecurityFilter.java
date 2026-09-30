@@ -9,6 +9,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -53,6 +54,9 @@ public class SecurityFilter extends OncePerRequestFilter {
                         .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
 
                 UserDetails userDetails = new CustomUserDetails(user);
+                if (!userDetails.isEnabled()) {
+                    throw new DisabledException("Conta desabilitada");
+                }
 
                 var authentication = new UsernamePasswordAuthenticationToken(
                         userDetails,
@@ -61,18 +65,18 @@ public class SecurityFilter extends OncePerRequestFilter {
                 );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                log.debug("JWT de acesso autenticado para usuario={} metodo={} uri={}",
-                        LogSanitizer.sanitize(username), LogSanitizer.sanitize(request.getMethod()), LogSanitizer.sanitize(request.getRequestURI()));
+                log.debug("JWT de acesso autenticado userId={} metodo={} rota={}",
+                        user.getId(), LogSanitizer.method(request.getMethod()), LogSanitizer.route(request.getRequestURI()));
 
             } catch (Exception ex) {
                 log.debug("JWT de acesso rejeitado metodo={} uri={} motivo={}",
-                        LogSanitizer.sanitize(request.getMethod()),
-                        LogSanitizer.sanitize(request.getRequestURI()),
+                        LogSanitizer.method(request.getMethod()),
+                        LogSanitizer.route(request.getRequestURI()),
                         ex.getClass().getSimpleName());
             }
         } else {
             log.trace("Requisicao sem JWT de acesso metodo={} uri={}",
-                    LogSanitizer.sanitize(request.getMethod()), LogSanitizer.sanitize(request.getRequestURI()));
+                    LogSanitizer.method(request.getMethod()), LogSanitizer.route(request.getRequestURI()));
         }
 
         filterChain.doFilter(request, response);

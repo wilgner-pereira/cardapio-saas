@@ -4,12 +4,15 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.wilgner.cardapio.exception.ResourceNotFoundException;
 import com.wilgner.cardapio.model.dto.auth.AuthenticationRequestDTO;
 import com.wilgner.cardapio.model.dto.auth.AuthenticationResponseDTO;
+import com.wilgner.cardapio.model.dto.auth.SessionStateDTO;
 import com.wilgner.cardapio.model.dto.error.ApiErrorDTO;
 import com.wilgner.cardapio.model.entity.Usuario;
 import com.wilgner.cardapio.repository.UsuarioRepository;
 import com.wilgner.cardapio.security.CustomUserDetails;
 import com.wilgner.cardapio.security.TokenCookieService;
 import com.wilgner.cardapio.security.TokenService;
+import com.wilgner.cardapio.security.RefreshSessionService;
+import com.wilgner.cardapio.security.SecurityAuditLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -35,36 +39,51 @@ public class AuthenticationController {
     private final TokenService tokenService;
     private final UsuarioRepository usuarioRepository;
     private final TokenCookieService tokenCookieService;
+    private final RefreshSessionService refreshSessions;
+    private final SecurityAuditLogger auditLogger;
 
     public AuthenticationController(AuthenticationManager authenticationManager,
                                     TokenService tokenService,
                                     UsuarioRepository usuarioRepository,
-                                    TokenCookieService tokenCookieService) {
+                                    TokenCookieService tokenCookieService,
+                                    RefreshSessionService refreshSessions,
+                                    SecurityAuditLogger auditLogger) {
         this.authenticationManager = authenticationManager;
         this.tokenService = tokenService;
         this.usuarioRepository = usuarioRepository;
         this.tokenCookieService = tokenCookieService;
+        this.refreshSessions = refreshSessions;
+        this.auditLogger = auditLogger;
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthenticationResponseDTO> login(
             @RequestBody @Valid AuthenticationRequestDTO dto
     ){
-        Usuario usuario = usuarioRepository.findByUsernameOrEmail(dto.username(), dto.username())
-                .orElseThrow(() -> new BadCredentialsException("Credenciais inválidas"));
+        try {
+            Usuario usuario = usuarioRepository.findByUsernameOrEmail(dto.username(), dto.username())
+                    .orElseThrow(() -> new BadCredentialsException("Credenciais inválidas"));
 
-        var authToken = new UsernamePasswordAuthenticationToken(usuario.getUsername(), dto.password());
-        var authentication = authenticationManager.authenticate(authToken);
-        var userDetails = (CustomUserDetails) authentication.getPrincipal();
-        Usuario authenticatedUser = findAuthenticatedUser(userDetails.getUsername());
+            var authToken = new UsernamePasswordAuthenticationToken(usuario.getUsername(), dto.password());
+            var authentication = authenticationManager.authenticate(authToken);
+            var userDetails = (CustomUserDetails) authentication.getPrincipal();
+            Usuario authenticatedUser = findAuthenticatedUser(userDetails.getUsername());
+            var accessToken = tokenService.generateAccessToken(authenticatedUser);
+            String refreshToken = refreshSessions.start(authenticatedUser);
 
-        var accessToken = tokenService.generateAccessToken(authenticatedUser);
-        var refreshToken = tokenService.generateRefreshToken(authenticatedUser);
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(accessToken, tokenService.getAccessTokenDuration()).toString())
-                .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(refreshToken, tokenService.getRefreshTokenDuration()).toString())
-                .body(toResponse("Autenticado", authenticatedUser, tokenService.getAccessTokenDuration().toMillis()));
+            auditLogger.record(SecurityAuditLogger.Event.LOGIN_SUCCEEDED,
+                    authenticatedUser.getId(), authenticatedUser.getId(),
+                    authenticatedUser.getEstabelecimento() != null
+                            ? authenticatedUser.getEstabelecimento().getId() : null,
+                    null);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(accessToken, tokenService.getAccessTokenDuration()).toString())
+                    .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(refreshToken, tokenService.getRefreshTokenDuration()).toString())
+                    .body(toResponse("Autenticado", authenticatedUser, tokenService.getAccessTokenDuration().toMillis()));
+        } catch (AuthenticationException | JWTVerificationException e) {
+            auditLogger.record(SecurityAuditLogger.Event.LOGIN_FAILED, null, null, null, null);
+            throw new BadCredentialsException("Credenciais inválidas");
+        }
     }
 
     @PostMapping("/refresh")
@@ -75,18 +94,16 @@ public class AuthenticationController {
             return unauthorized("Sessão expirada", request);
         }
 
-        String username;
-
+        RefreshSessionService.Rotation rotation;
         try {
-            username = tokenService.validateRefreshToken(refreshToken);
+            rotation = refreshSessions.rotate(refreshToken);
         } catch (JWTVerificationException e) {
             return unauthorized("Sessão expirada", request);
         }
 
-        Usuario user = findAuthenticatedUser(username);
-
-        String newAccessToken = tokenService.generateAccessToken(user);
-        String newRefreshToken = tokenService.generateRefreshToken(user);
+        Usuario user = rotation.user();
+        String newAccessToken = rotation.accessToken();
+        String newRefreshToken = rotation.refreshToken();
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(newAccessToken, tokenService.getAccessTokenDuration()).toString())
@@ -95,7 +112,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout() {
+    public ResponseEntity<?> logout(@CookieValue(name = "refresh_token", required = false) String refreshToken) {
+        auditLogger.recordCurrent(SecurityAuditLogger.Event.LOGOUT, null, null, null);
+        refreshSessions.revoke(refreshToken);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.clearAccessToken().toString())
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.clearRefreshToken().toString())
@@ -108,6 +127,20 @@ public class AuthenticationController {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Usuario user = findAuthenticatedUser(userDetails.getUsername());
         return ResponseEntity.ok(toResponse("Token válido", user, 0));
+    }
+
+    @GetMapping("/session")
+    public ResponseEntity<SessionStateDTO> sessionState(
+            @CookieValue(name = "refresh_token", required = false) String refreshToken) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        AuthenticationResponseDTO session = null;
+        if (authentication != null && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof CustomUserDetails details) {
+            session = toResponse("Sessão ativa", findAuthenticatedUser(details.getUsername()), 0);
+        }
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(new SessionStateDTO(session != null,
+                        refreshToken != null && !refreshToken.isBlank(), session));
     }
 
     @GetMapping("/csrf")

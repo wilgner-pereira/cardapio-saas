@@ -32,10 +32,11 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException)
             throws IOException, ServletException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.warn("Acesso negado metodo={} uri={} usuario={} autenticado={} motivo={}",
-                LogSanitizer.sanitize(request.getMethod()),
-                LogSanitizer.sanitize(request.getRequestURI()),
-                authentication != null ? LogSanitizer.sanitize(authentication.getName()) : "anonymous",
+        log.warn("Acesso negado metodo={} rota={} userId={} autenticado={} motivo={}",
+                LogSanitizer.method(request.getMethod()),
+                LogSanitizer.route(request.getRequestURI()),
+                authentication != null && authentication.getPrincipal() instanceof CustomUserDetails details
+                        ? details.getUser().getId() : null,
                 authentication != null && authentication.isAuthenticated(),
                 accessDeniedException.getClass().getSimpleName());
 

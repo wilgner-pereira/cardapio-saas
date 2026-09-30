@@ -14,23 +14,23 @@ export function AuthProvider({ children }) {
       setUser({
         userId: session.userId,
         username: session.username,
-        email: session.email,
         estabelecimentoSlug: session.estabelecimentoSlug,
         roles: session.roles || []
       });
       setStatus("authenticated");
       setError("");
       return true;
-    } catch {
-      setUser(null);
-      setStatus("anonymous");
+    } catch (cause) {
+      if (cause.sessionExpired) {
+        setUser(null);
+        setStatus("anonymous");
+      } else {
+        setError("Não foi possível verificar a sessão. Tente novamente.");
+        setStatus(previous => previous === "authenticated" ? previous : "unavailable");
+      }
       return false;
     }
   }, []);
-
-  useEffect(() => {
-    validate();
-  }, [validate]);
 
   useEffect(() => {
     const handleSessionExpired = () => {
@@ -48,7 +48,6 @@ export function AuthProvider({ children }) {
     setUser({
       userId: response.userId,
       username: response.username || nextUsername,
-      email: response.email,
       estabelecimentoSlug: response.estabelecimentoSlug,
       roles: response.roles || []
     });

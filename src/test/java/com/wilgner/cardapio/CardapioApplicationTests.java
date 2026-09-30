@@ -49,7 +49,28 @@ class CardapioApplicationTests {
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))
-                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"));
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
+                .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=()"));
+    }
+
+    @Test
+    void healthExposesMinimumPublicStatusAndRestrictsAdministrativeComponents() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist())
+                .andExpect(jsonPath("$.details").doesNotExist());
+
+        mockMvc.perform(get("/actuator/health/admin")
+                        .with(user("tenant-admin").roles("TENANT_ADMIN")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/actuator/health/admin")
+                        .with(user("platform-admin").roles("PLATFORM_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.db.status").value("UP"))
+                .andExpect(jsonPath("$.details").doesNotExist());
     }
 
     @Test

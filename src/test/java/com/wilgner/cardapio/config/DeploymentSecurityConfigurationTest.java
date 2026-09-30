@@ -1,6 +1,7 @@
 package com.wilgner.cardapio.config;
 
 import com.wilgner.cardapio.controller.SetupController;
+import com.wilgner.cardapio.security.SecurityAuditLogger;
 import com.wilgner.cardapio.service.AdminEstabelecimentoServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -14,7 +15,8 @@ class DeploymentSecurityConfigurationTest {
     @Test
     void setupDisabledHasNoControllerAndEnablingWithoutStrongSecretFails() {
         var context = new ApplicationContextRunner().withUserConfiguration(SetupController.class)
-                .withBean(AdminEstabelecimentoServiceImpl.class, () -> mock(AdminEstabelecimentoServiceImpl.class));
+                .withBean(AdminEstabelecimentoServiceImpl.class, () -> mock(AdminEstabelecimentoServiceImpl.class))
+                .withBean(SecurityAuditLogger.class, () -> mock(SecurityAuditLogger.class));
         context.run(c -> assertThat(c).doesNotHaveBean(SetupController.class));
         context.withPropertyValues("app.setup-admin.enabled=true").run(c -> assertThat(c).hasFailed());
         context.withPropertyValues("app.setup-admin.enabled=true", "app.setup-admin.token=short")

@@ -1,24 +1,42 @@
+import { validateImage } from "./uploadValidation.js";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const AUTH_USER_KEY = "cardapio.authUser";
 
 let refreshPromise = null;
+let csrfPromise = null;
 let cachedCsrfToken = null;
 let cachedCsrfHeader = "X-XSRF-TOKEN";
+let currentUser = null;
+let validationPromise = null;
+
+function removeLegacySession() {
+  // Upgrade old clients without trusting or migrating persisted personal data.
+  for (const name of ["localStorage", "sessionStorage"]) {
+    try {
+      window[name].removeItem(AUTH_USER_KEY);
+    } catch {
+      // Cookie authentication also works when browser storage is unavailable.
+    }
+  }
+}
+
+removeLegacySession();
 
 function saveSession(session) {
   if (session?.username) {
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify({
+    currentUser = {
       userId: session.userId,
       username: session.username,
-      email: session.email,
       estabelecimentoSlug: session.estabelecimentoSlug,
       roles: session.roles || []
-    }));
+    };
   }
 }
 
 function clearSession() {
-  localStorage.removeItem(AUTH_USER_KEY);
+  currentUser = null;
+  removeLegacySession();
   cachedCsrfToken = null;
   cachedCsrfHeader = "X-XSRF-TOKEN";
 }
@@ -28,11 +46,7 @@ function notifySessionExpired() {
 }
 
 function getStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem(AUTH_USER_KEY) || "null");
-  } catch {
-    return null;
-  }
+  return currentUser;
 }
 
 function hasStoredUser() {
@@ -113,10 +127,13 @@ async function refreshAccessToken() {
           const message = typeof data === "object" && data?.message
             ? data.message
             : "Nao foi possivel renovar a sessao";
-          throw new Error(message);
+          throw Object.assign(new Error(message), {
+            sessionExpired: response.status === 401 || response.status === 404
+          });
         }
 
         saveSession(data);
+        await initializeCsrfToken({ force: true });
         return data;
       })
       .finally(() => {
@@ -129,6 +146,13 @@ async function refreshAccessToken() {
 
 async function request(path, options = {}) {
   const { auth = true, retry = true } = options;
+  const method = (options.method || "GET").toUpperCase();
+  const csrfExempt = path === "/auth/login" || path === "/auth/refresh";
+
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !csrfExempt) {
+    await initializeCsrfToken();
+  }
+
   let response = await doFetch(path, options);
 
   if (auth && retry && response.status === 401) {
@@ -142,16 +166,42 @@ async function request(path, options = {}) {
     const message = typeof data === "object" && data?.message
       ? data.message
       : "Nao foi possivel concluir a operacao";
-    throw new Error(message);
+    if (auth && response.status === 401) {
+      clearSession();
+      notifySessionExpired();
+    }
+    throw Object.assign(new Error(message), { sessionExpired: auth && response.status === 401 });
   }
 
   return data;
 }
 
-async function initializeCsrfToken() {
-  const csrf = await request("/auth/csrf", { auth: false });
-  cachedCsrfToken = csrf.token;
-  cachedCsrfHeader = csrf.headerName === "X-CSRF-TOKEN" ? "X-CSRF-TOKEN" : "X-XSRF-TOKEN";
+async function initializeCsrfToken({ force = false } = {}) {
+  if (!force && cachedCsrfToken) {
+    return cachedCsrfToken;
+  }
+
+  if (!csrfPromise) {
+    csrfPromise = (async () => {
+      const response = await doFetch("/auth/csrf", { auth: false });
+      const csrf = await readResponse(response);
+
+      if (!response.ok || !csrf?.token) {
+        const message = typeof csrf === "object" && csrf?.message
+          ? csrf.message
+          : "Nao foi possivel inicializar a protecao CSRF";
+        throw new Error(message);
+      }
+
+      cachedCsrfToken = csrf.token;
+      cachedCsrfHeader = csrf.headerName === "X-CSRF-TOKEN" ? "X-CSRF-TOKEN" : "X-XSRF-TOKEN";
+      return cachedCsrfToken;
+    })().finally(() => {
+      csrfPromise = null;
+    });
+  }
+
+  return csrfPromise;
 }
 
 export const api = {
@@ -161,18 +211,17 @@ export const api = {
 
   async login(username, password) {
     clearSession();
-    await initializeCsrfToken();
     const session = await request("/auth/login", {
       method: "POST",
       body: { username, password },
       auth: false
     });
     saveSession(session);
+    await initializeCsrfToken({ force: true });
     return session;
   },
 
   async logout() {
-    await initializeCsrfToken();
     const result = await request("/auth/logout", {
       method: "POST",
       auth: false
@@ -181,20 +230,29 @@ export const api = {
     return result;
   },
 
-  async validate() {
-    if (!hasStoredUser()) {
-      clearSession();
-      throw new Error("Sessao ausente");
+  validate() {
+    if (!validationPromise) {
+      validationPromise = (async () => {
+        await initializeCsrfToken();
+        let state = await request("/auth/session", { auth: false });
+        if (!state.authenticated && state.refreshAvailable) {
+          await refreshAccessToken();
+          state = await request("/auth/session", { auth: false });
+        }
+        if (!state.authenticated || !state.session) {
+          clearSession();
+          notifySessionExpired();
+          throw Object.assign(new Error("Sessão expirada"), { sessionExpired: true });
+        }
+        const session = state.session;
+        saveSession(session);
+        return session;
+      })().finally(() => { validationPromise = null; });
     }
-
-    await initializeCsrfToken();
-    const session = await request("/auth/validate");
-    saveSession(session);
-    return session;
+    return validationPromise;
   },
 
   async createFirstAdmin(payload, setupToken) {
-    await initializeCsrfToken();
     return request("/setup/admin", {
       method: "POST",
       body: payload,
@@ -283,7 +341,12 @@ export const api = {
     });
   },
 
+  async discardUnusedImage(url) {
+    return request("/painel/storage/unused-image", { method: "DELETE", body: { url } });
+  },
+
   async uploadImage(file) {
+    validateImage(file);
     const formData = new FormData();
     formData.append("file", file);
 

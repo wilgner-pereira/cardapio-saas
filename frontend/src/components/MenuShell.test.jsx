@@ -3,6 +3,43 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MenuShell } from './MenuShell';
 
 describe('MenuShell', () => {
+  it('uses the same sequence for sections and navigation after reorder and keeps anchors', () => {
+    const entries = [
+      { id: 1, nome: 'Suco', categoria: 'Bebidas', ativo: true, categoriaOrdem: 0 },
+      { id: 2, nome: 'Batata', categoria: 'Entradas', ativo: true, categoriaOrdem: 1 }
+    ];
+    const { rerender } = render(<MenuShell username="test" products={entries} />);
+    expect(screen.getAllByRole('heading', { level: 2 }).map(node => node.textContent)).toEqual(['Bebidas', 'Entradas']);
+    expect([...screen.getByRole('navigation').querySelectorAll('button')].map(node => node.textContent)).toEqual(['Bebidas', 'Entradas']);
+    rerender(<MenuShell username="test" products={[entries[1], entries[0]]} />);
+    expect(screen.getAllByRole('heading', { level: 2 }).map(node => node.textContent)).toEqual(['Entradas', 'Bebidas']);
+    fireEvent.click(screen.getByRole('button', { name: 'Bebidas' }));
+    expect(document.getElementById('category-bebidas').scrollIntoView).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Subir seção/ })).not.toBeInTheDocument();
+  });
+
+  it('moves categories and disables first/last boundaries and pending requests', () => {
+    const onMoveCategory = vi.fn();
+    const entries = [
+      { id: 1, nome: 'Suco', categoria: 'Bebidas', ativo: true },
+      { id: 2, nome: 'Batata', categoria: 'Entradas', ativo: true }
+    ];
+    const { rerender } = render(<MenuShell username="test" mode="admin" products={entries} onMoveCategory={onMoveCategory} />);
+    expect(screen.getByRole('button', { name: 'Subir seção Bebidas' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Descer seção Entradas' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Subir seção Entradas' }));
+    expect(onMoveCategory).toHaveBeenCalledWith('Entradas', -1);
+    fireEvent.click(screen.getByRole('button', { name: 'Descer seção Bebidas' }));
+    expect(onMoveCategory).toHaveBeenCalledWith('Bebidas', 1);
+    rerender(<MenuShell username="test" mode="admin" products={entries} categoryMoving onMoveCategory={onMoveCategory} />);
+    expect(screen.getByRole('button', { name: 'Subir seção Entradas' })).toBeDisabled();
+  });
+  it('renders the empty state when products is omitted', () => {
+    render(<MenuShell username="test" />);
+    expect(screen.getByText(/cardapio indisponivel/i)).toBeInTheDocument();
+    expect(screen.queryByText('〽')).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
     document.body.removeAttribute('data-theme');

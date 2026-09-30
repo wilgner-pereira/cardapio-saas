@@ -43,8 +43,12 @@ public class TokenService {
         return generateToken(usuario, getAccessTokenDuration(), ACCESS_TOKEN_TYPE);
     }
 
-    public String generateRefreshToken(Usuario usuario) {
-        return generateToken(usuario, getRefreshTokenDuration(), REFRESH_TOKEN_TYPE);
+    public String generateRefreshToken(Usuario usuario, String sessionId, String jti, Instant expiresAt) {
+        return JWT.create().withIssuer(issuer).withSubject(usuario.getUsername())
+                .withClaim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE)
+                .withClaim("sid", sessionId).withJWTId(jti)
+                .withIssuedAt(Instant.now()).withExpiresAt(expiresAt)
+                .sign(Algorithm.HMAC256(secret));
     }
 
     public String validateAccessToken(String token) {
@@ -52,8 +56,21 @@ public class TokenService {
     }
 
     public String validateRefreshToken(String token) {
-        return validateToken(token, REFRESH_TOKEN_TYPE);
+        return verifyRefreshToken(token).username();
     }
+
+    public RefreshClaims verifyRefreshToken(String token) {
+        var jwt = JWT.require(Algorithm.HMAC256(secret)).withIssuer(issuer)
+                .withClaim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE).build().verify(token);
+        String sid = jwt.getClaim("sid").asString();
+        if (jwt.getSubject() == null || jwt.getId() == null || jwt.getId().isBlank()
+                || sid == null || sid.isBlank() || jwt.getExpiresAt() == null) {
+            throw new JWTVerificationException("Sessão expirada");
+        }
+        return new RefreshClaims(jwt.getSubject(), sid, jwt.getId());
+    }
+
+    public record RefreshClaims(String username, String sessionId, String jti) {}
 
     public Duration getAccessTokenDuration() {
         return Duration.ofMillis(accessExpirationMs);

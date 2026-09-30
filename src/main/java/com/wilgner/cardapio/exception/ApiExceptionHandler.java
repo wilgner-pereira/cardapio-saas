@@ -24,6 +24,11 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    @ExceptionHandler(StorageQuotaException.class)
+    public ResponseEntity<ApiErrorDTO> handleStorageQuota(StorageQuotaException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorDTO> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), request);
@@ -98,7 +103,14 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorDTO> handleUnexpected(Exception ex, HttpServletRequest request) {
-        log.error("Erro inesperado ao processar {}", LogSanitizer.sanitize(request.getRequestURI()), ex);
+        String eventId = java.util.UUID.randomUUID().toString();
+        String location = java.util.Arrays.stream(ex.getStackTrace())
+                .filter(frame -> frame.getClassName().startsWith("com.wilgner.cardapio."))
+                .findFirst().map(StackTraceElement::toString).orElse("external");
+        // Exception messages/causes can contain SQL values, URLs and credentials.
+        log.error("Erro inesperado eventId={} metodo={} rota={} tipo={} local={}", eventId,
+                LogSanitizer.method(request.getMethod()), LogSanitizer.route(request.getRequestURI()),
+                ex.getClass().getSimpleName(), location);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno", request);
     }
 

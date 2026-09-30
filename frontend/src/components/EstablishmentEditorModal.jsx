@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { ImagePlus, Loader2, X } from "./icons.js";
+import { IMAGE_ACCEPT, MAX_IMAGE_BYTES, validateImage } from "../api/uploadValidation.js";
+import { MenuHero } from "./MenuHero.jsx";
 
 const emptyForm = {
   nome: "",
@@ -10,9 +12,11 @@ const emptyForm = {
   emailContato: ""
 };
 
-export function EstablishmentEditorModal({ establishment, onClose, onSubmit }) {
+export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onHeroPreview, theme }) {
   const [form, setForm] = useState(emptyForm);
-  const [file, setFile] = useState(null);
+  const [heroFile, setHeroFile] = useState(null);
+  const [heroRemoved, setHeroRemoved] = useState(false);
+  const [heroPreview, setHeroPreview] = useState(establishment?.heroImageUrl || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,9 +29,32 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit }) {
       telefone: establishment?.telefone || "",
       emailContato: establishment?.emailContato || ""
     });
-    setFile(null);
     setError("");
   }, [establishment]);
+
+  useEffect(() => {
+    const url = heroFile ? URL.createObjectURL(heroFile) : heroRemoved ? "" : establishment?.heroImageUrl || "";
+    setHeroPreview(url);
+    onHeroPreview?.(url);
+    return () => {
+      if (heroFile) URL.revokeObjectURL(url);
+      onHeroPreview?.(null);
+    };
+  }, [heroFile, heroRemoved, establishment?.heroImageUrl, onHeroPreview]);
+
+  function selectHero(event) {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    try {
+      validateImage(selected);
+      setHeroFile(selected);
+      setHeroRemoved(false);
+      setError("");
+    } catch (err) {
+      event.target.value = "";
+      setError(err.message);
+    }
+  }
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -40,10 +67,11 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit }) {
     setError("");
 
     try {
+      if (heroFile) validateImage(heroFile);
       await onSubmit({
         ...form,
-        logoUrl: establishment?.logoUrl || ""
-      }, file);
+        heroImageUrl: heroRemoved ? "" : establishment?.heroImageUrl || ""
+      }, heroFile);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -93,11 +121,21 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit }) {
             <input name="emailContato" type="email" value={form.emailContato} onChange={updateField} maxLength={255} />
           </label>
 
+          <div className="hero-preview" data-theme={theme || establishment?.tema || "artesanal"}>
+            <MenuHero name={form.nome || "Seu estabelecimento"} imageUrl={heroPreview} isAdmin />
+          </div>
           <label className="file-field">
             <ImagePlus size={20} />
-            <span>{file ? file.name : establishment?.logoUrl ? "Trocar logo" : "Enviar logo"}</span>
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => setFile(event.target.files?.[0] || null)} />
+            <span>{heroFile ? heroFile.name : heroPreview ? "Trocar imagem de capa" : "Enviar imagem de capa"}</span>
+            <input key={heroRemoved ? "removed" : "cover"} type="file" accept={IMAGE_ACCEPT} aria-label="Imagem de capa" disabled={saving} onChange={selectHero} />
           </label>
+          <p className="hero-upload-help">Use uma imagem horizontal. JPEG, PNG, WEBP ou GIF, até {MAX_IMAGE_BYTES / (1024 * 1024)} MiB.</p>
+          {(heroPreview || heroFile) && (
+            <button type="button" className="secondary-action" disabled={saving} onClick={() => {
+              setHeroFile(null);
+              setHeroRemoved(true);
+            }}>Remover imagem de capa</button>
+          )}
 
           {error && <p className="form-error">{error}</p>}
 

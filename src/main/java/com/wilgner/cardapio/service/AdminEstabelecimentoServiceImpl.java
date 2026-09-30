@@ -14,6 +14,7 @@ import com.wilgner.cardapio.model.entity.Usuario;
 import com.wilgner.cardapio.repository.EstabelecimentoRepository;
 import com.wilgner.cardapio.repository.RoleRepository;
 import com.wilgner.cardapio.repository.UsuarioRepository;
+import com.wilgner.cardapio.security.SecurityAuditLogger;
 import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,17 +30,20 @@ public class AdminEstabelecimentoServiceImpl {
     private final RoleRepository roleRepository;
     private final EstabelecimentoMapper estabelecimentoMapper;
     private final PasswordEncoder passwordEncoder;
+    private final SecurityAuditLogger auditLogger;
 
     public AdminEstabelecimentoServiceImpl(EstabelecimentoRepository estabelecimentoRepository,
                                            UsuarioRepository usuarioRepository,
                                            RoleRepository roleRepository,
                                            EstabelecimentoMapper estabelecimentoMapper,
-                                           PasswordEncoder passwordEncoder) {
+                                           PasswordEncoder passwordEncoder,
+                                           SecurityAuditLogger auditLogger) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.roleRepository = roleRepository;
         this.estabelecimentoMapper = estabelecimentoMapper;
         this.passwordEncoder = passwordEncoder;
+        this.auditLogger = auditLogger;
     }
 
     @Transactional
@@ -72,7 +76,9 @@ public class AdminEstabelecimentoServiceImpl {
                 .orElseThrow(() -> new IllegalStateException("Role padrão ROLE_TENANT_ADMIN ausente no banco"));
         usuario.setRoles(Set.of(roleUser));
 
-        usuarioRepository.save(usuario);
+        Usuario usuarioSalvo = usuarioRepository.save(usuario);
+        auditLogger.recordCurrent(SecurityAuditLogger.Event.ESTABLISHMENT_CREATED,
+                usuarioSalvo.getId(), estabelecimentoSalvo.getId(), null);
 
         return estabelecimentoMapper.toDTO(estabelecimentoSalvo);
     }
@@ -117,6 +123,8 @@ public class AdminEstabelecimentoServiceImpl {
         usuario.setRoles(Set.of(roleAdmin));
 
         Usuario salvo = usuarioRepository.save(usuario);
+        auditLogger.recordCurrent(SecurityAuditLogger.Event.PLATFORM_ADMIN_CREATED,
+                salvo.getId(), estabelecimentoSalvo.getId(), null);
         return new RegisterResponseDTO(salvo.getUsername(), estabelecimentoSalvo.getSlug());
     }
 
@@ -139,6 +147,10 @@ public class AdminEstabelecimentoServiceImpl {
 
         estabelecimento.setAtivo(ativo);
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
+        auditLogger.recordCurrent(Boolean.TRUE.equals(ativo)
+                        ? SecurityAuditLogger.Event.ESTABLISHMENT_ACTIVATED
+                        : SecurityAuditLogger.Event.ESTABLISHMENT_DISABLED,
+                null, atualizado.getId(), null);
 
         return estabelecimentoMapper.toDTO(atualizado);
     }
@@ -149,6 +161,8 @@ public class AdminEstabelecimentoServiceImpl {
                 .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
 
         estabelecimentoRepository.delete(estabelecimento);
+        auditLogger.recordCurrent(SecurityAuditLogger.Event.ESTABLISHMENT_DELETED,
+                null, id, null);
     }
 
     private String gerarSlug(String username) {

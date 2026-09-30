@@ -16,7 +16,9 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        boolean activeEstablishment = hasActiveEstablishment();
         return usuario.getRoles().stream()
+                .filter(role -> activeEstablishment || !"ROLE_TENANT_ADMIN".equals(role.getRoleName()))
                 .map(role -> new SimpleGrantedAuthority(role.getRoleName()))
                 .toList();
     }
@@ -33,5 +35,19 @@ public class CustomUserDetails implements UserDetails {
 
     public Usuario getUser() {
         return this.usuario;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return hasRole("ROLE_PLATFORM_ADMIN") || hasActiveEstablishment();
+    }
+
+    private boolean hasActiveEstablishment() {
+        return usuario.getEstabelecimento() != null
+                && Boolean.TRUE.equals(usuario.getEstabelecimento().getAtivo());
+    }
+
+    private boolean hasRole(String roleName) {
+        return usuario.getRoles().stream().anyMatch(role -> roleName.equals(role.getRoleName()));
     }
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./client.js";
+let api;
 
 const session = {
   message: "Autenticado",
@@ -22,12 +22,22 @@ function response(body, status = 200) {
 describe("authentication with HttpOnly cookies and metadata-only responses", () => {
   let fetchMock;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
+    ({ api } = await import("./client.js"));
     document.cookie = "XSRF-TOKEN=test-csrf; path=/";
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
   });
+
+  async function loginInMemory() {
+    fetchMock.mockResolvedValueOnce(response(session))
+      .mockResolvedValueOnce(response({ token: "test-csrf" }));
+    await api.login(session.username, "test-password");
+    fetchMock.mockClear();
+  }
 
   afterEach(() => {
     localStorage.clear();
@@ -37,17 +47,19 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
 
   it("logs in, validates, refreshes a rejected request and logs out without a JSON JWT", async () => {
     fetchMock
-      .mockResolvedValueOnce(response({ token: "test-csrf" }))
       .mockResolvedValueOnce(response(session))
       .mockResolvedValueOnce(response({ token: "test-csrf" }))
-      .mockResolvedValueOnce(response({ ...session, accessExpiresInMs: 0 }))
+      .mockResolvedValueOnce(response({ authenticated: true, session: { ...session, accessExpiresInMs: 0 } }))
       .mockResolvedValueOnce(response({ message: "Expired" }, 401))
       .mockResolvedValueOnce(response({ ...session, message: "Token renovado" }))
-      .mockResolvedValueOnce(response([{ id: 1, nome: "Produto" }]))
       .mockResolvedValueOnce(response({ token: "test-csrf" }))
+      .mockResolvedValueOnce(response([{ id: 1, nome: "Produto" }]))
       .mockResolvedValueOnce(response({ message: "Sessão encerrada" }));
 
     expect(await api.login(session.username, "test-password")).toEqual(session);
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+    expect(api.getStoredUser()).not.toHaveProperty("email");
     expect(api.getStoredUser()).toMatchObject({ username: session.username, roles: ["ROLE_TENANT_ADMIN"] });
     expect(await api.validate()).toMatchObject({ username: session.username });
     expect(await api.getAdminProducts()).toEqual([{ id: 1, nome: "Produto" }]);
@@ -55,8 +67,8 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     expect(api.getStoredUser()).toBeNull();
 
     expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
-      "/auth/csrf", "/auth/login", "/auth/csrf", "/auth/validate",
-      "/painel/produtos", "/auth/refresh", "/painel/produtos", "/auth/csrf", "/auth/logout"
+      "/auth/login", "/auth/csrf", "/auth/session", "/painel/produtos",
+      "/auth/refresh", "/auth/csrf", "/painel/produtos", "/auth/logout"
     ]);
     for (const [, options] of fetchMock.mock.calls) {
       expect(options.credentials).toBe("include");
@@ -68,7 +80,7 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
   });
 
   it("clears metadata and signals expiration when refresh fails", async () => {
-    localStorage.setItem("cardapio.authUser", JSON.stringify(session));
+    await loginInMemory();
     const expired = vi.fn();
     window.addEventListener("cardapio:session-expired", expired);
     fetchMock
@@ -88,23 +100,19 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     // A frontend-host cookie must not override the token obtained from the API host.
     document.cookie = "XSRF-TOKEN=unrelated-frontend-token; path=/";
     fetchMock
-      .mockResolvedValueOnce(response({ token: "api-host-token", headerName: "X-CSRF-TOKEN" }))
       .mockResolvedValueOnce(response(session))
-      .mockResolvedValueOnce(response({ token: "fresh-logout-token", headerName: "X-CSRF-TOKEN" }))
+      .mockResolvedValueOnce(response({ token: "api-host-token", headerName: "X-CSRF-TOKEN" }))
       .mockResolvedValueOnce(response({ message: "Sessão encerrada" }));
     await api.login(session.username, "test-password");
-    expect(fetchMock.mock.calls[1][1].headers["X-CSRF-TOKEN"]).toBe("api-host-token");
-    expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty("X-XSRF-TOKEN");
     await api.logout();
-    expect(fetchMock.mock.calls[3][1].headers["X-CSRF-TOKEN"]).toBe("fresh-logout-token");
+    expect(fetchMock.mock.calls[2][1].headers["X-CSRF-TOKEN"]).toBe("api-host-token");
+    expect(fetchMock.mock.calls[2][1].headers).not.toHaveProperty("X-XSRF-TOKEN");
     expect(api.getStoredUser()).toBeNull();
   });
 
   it("keeps session metadata if the server rejects logout", async () => {
-    localStorage.setItem("cardapio.authUser", JSON.stringify(session));
-    fetchMock
-      .mockResolvedValueOnce(response({ token: "test-csrf" }))
-      .mockResolvedValueOnce(response({ message: "Acesso negado" }, 403));
+    await loginInMemory();
+    fetchMock.mockResolvedValueOnce(response({ message: "Acesso negado" }, 403));
     await expect(api.logout()).rejects.toThrow("Acesso negado");
     expect(api.getStoredUser()).toMatchObject({ username: session.username });
   });
@@ -125,7 +133,7 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
   });
 
   it("does not expire a session when refresh is temporarily rate limited", async () => {
-    localStorage.setItem("cardapio.authUser", JSON.stringify(session));
+    await loginInMemory();
     const expired = vi.fn();
     window.addEventListener("cardapio:session-expired", expired);
     fetchMock
@@ -139,5 +147,107 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     } finally {
       window.removeEventListener("cardapio:session-expired", expired);
     }
+  });
+
+  it("reconstructs a reload from validate and removes legacy storage without trusting it", async () => {
+    localStorage.setItem("cardapio.authUser", JSON.stringify({ ...session, username: "stale" }));
+    sessionStorage.setItem("cardapio.authUser", JSON.stringify(session));
+    vi.resetModules();
+    const reloaded = (await import("./client.js")).api;
+    expect(reloaded.getStoredUser()).toBeNull();
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+    fetchMock.mockResolvedValueOnce(response({ token: "csrf" }))
+      .mockResolvedValueOnce(response({ authenticated: true, session }));
+    await Promise.all([reloaded.validate(), reloaded.validate()]);
+    expect(reloaded.getStoredUser()).toMatchObject({ username: session.username });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual(["/auth/csrf", "/auth/session"]);
+  });
+
+  it("loads public menu data without validate or refresh requests", async () => {
+    fetchMock.mockResolvedValueOnce(response([{ id: 1, nome: "Pizza" }]))
+      .mockResolvedValueOnce(response({ nome: "Pizzaria" }));
+
+    await Promise.all([
+      api.getPublicMenu("pizzaria"),
+      api.getPublicEstablishment("pizzaria")
+    ]);
+
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+      "/public/pizzaria/cardapio",
+      "/public/pizzaria/cardapio/info"
+    ]);
+  });
+
+  it("never persists tokens even if an old server includes them in JSON", async () => {
+    const writes = vi.spyOn(Storage.prototype, "setItem");
+    fetchMock.mockResolvedValueOnce(response({ ...session, accessToken: "jwt-access", refreshToken: "jwt-refresh" }))
+      .mockResolvedValueOnce(response({ token: "csrf" }));
+    await api.login(session.username, "test-password");
+    expect(writes).not.toHaveBeenCalled();
+    expect(api.getStoredUser()).not.toHaveProperty("accessToken");
+    expect(api.getStoredUser()).not.toHaveProperty("refreshToken");
+    fetchMock.mockResolvedValueOnce(response({}));
+    await api.logout();
+    expect(api.hasStoredUser()).toBe(false);
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+    writes.mockRestore();
+  });
+
+  it("can recover a reload with expired access through refresh", async () => {
+    fetchMock.mockResolvedValueOnce(response({ token: "csrf" }))
+      .mockResolvedValueOnce(response({ authenticated: false, refreshAvailable: true, session: null }))
+      .mockResolvedValueOnce(response(session))
+      .mockResolvedValueOnce(response({ token: "csrf-after-refresh" }))
+      .mockResolvedValueOnce(response({ authenticated: true, session }))
+      .mockResolvedValueOnce(response([{ id: 1, nome: "Produto restaurado" }]));
+    await api.validate();
+    expect(api.getStoredUser()).toMatchObject({ username: session.username });
+    expect(await api.getAdminProducts()).toEqual([{ id: 1, nome: "Produto restaurado" }]);
+    expect(localStorage.length).toBe(0);
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+      "/auth/csrf", "/auth/session", "/auth/refresh", "/auth/csrf", "/auth/session",
+      "/painel/produtos"
+    ]);
+  });
+
+  it("recognizes an anonymous reload without probing protected routes or attempting refresh", async () => {
+    fetchMock.mockResolvedValueOnce(response({ token: "csrf" }))
+      .mockResolvedValueOnce(response({ authenticated: false, refreshAvailable: false, session: null }));
+    await expect(api.validate()).rejects.toMatchObject({ sessionExpired: true });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual(["/auth/csrf", "/auth/session"]);
+    expect(api.getStoredUser()).toBeNull();
+  });
+
+  it("shares one CSRF initialization across parallel mutations", async () => {
+    fetchMock
+      .mockResolvedValueOnce(response({ token: "parallel-csrf", headerName: "X-CSRF-TOKEN" }))
+      .mockResolvedValueOnce(response({ id: 10, ativo: false }))
+      .mockResolvedValueOnce(response({ id: 10, ordem: 2 }));
+
+    await Promise.all([
+      api.updateProductStatus(10, false),
+      api.updateProductOrder(10, 2)
+    ]);
+
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+      "/auth/csrf", "/painel/produtos/10/status", "/painel/produtos/10/ordem"
+    ]);
+    for (const [, options] of fetchMock.mock.calls.slice(1)) {
+      expect(options.headers["X-CSRF-TOKEN"]).toBe("parallel-csrf");
+    }
+  });
+
+  it("requests unused image cleanup with authentication and CSRF", async () => {
+    await loginInMemory();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await api.discardUnusedImage("https://example.com/new-upload.png");
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toBe("/painel/storage/unused-image");
+    expect(options.method).toBe("DELETE");
+    expect(options.credentials).toBe("include");
+    expect(options.headers["X-XSRF-TOKEN"]).toBe("test-csrf");
+    expect(JSON.parse(options.body)).toEqual({ url: "https://example.com/new-upload.png" });
   });
 });

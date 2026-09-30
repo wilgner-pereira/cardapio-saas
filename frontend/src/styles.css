@@ -153,14 +153,76 @@ button {
   box-shadow: 0 22px 70px var(--theme-shell-shadow);
 }
 
-.hero {
-  position: relative;
-  height: clamp(300px, 42vw, 430px);
-  overflow: hidden;
-  border-bottom-left-radius: 46% 7%;
-  border-bottom-right-radius: 46% 7%;
-  background: var(--theme-hero-gradient);
+:root, [data-theme] {
+  --theme-hero-bg: var(--theme-hero-gradient);
+  --theme-hero-wave-1: color-mix(in srgb, var(--theme-accent) 10%, var(--theme-surface));
+  --theme-hero-wave-2: color-mix(in srgb, var(--theme-accent) 4%, var(--theme-surface));
+  --theme-hero-accent: var(--theme-accent);
+  --theme-hero-eyebrow: var(--theme-accent-dark);
 }
+
+.hero {
+  --hero-bg: var(--theme-hero-bg);
+  --hero-wave-1: var(--theme-hero-wave-1);
+  --hero-wave-2: var(--theme-hero-wave-2);
+  --hero-accent: var(--theme-hero-accent);
+  --hero-title: var(--theme-heading);
+  --hero-eyebrow: var(--theme-hero-eyebrow);
+  position: relative;
+  isolation: isolate;
+  min-height: 280px;
+  display: flex;
+  align-items: flex-end;
+  padding: 70px clamp(24px, 5vw, 58px) 38px;
+  overflow: hidden;
+  border-radius: 0 0 18px 18px;
+  background: var(--hero-bg);
+}
+
+[data-theme="artesanal"] {
+  --theme-hero-bg: linear-gradient(145deg, #FFFFFF, #FAF9F6);
+  --theme-hero-wave-1: #F1EDE5;
+  --theme-hero-wave-2: #FAF8F3;
+  --theme-hero-accent: #C18A32;
+  --theme-hero-eyebrow: #80551A;
+}
+
+[data-theme="grafite"] {
+  --theme-hero-wave-1: #2E2F27;
+  --theme-hero-wave-2: #191F1B;
+  --theme-hero-eyebrow: var(--theme-accent);
+}
+
+.hero-waves, .hero-cover, .hero-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.hero-wave-back { fill: var(--hero-wave-1); }
+.hero-wave-front { fill: var(--hero-wave-2); }
+.hero-wave-line {
+  fill: none;
+  stroke: var(--hero-accent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.75;
+}
+
+.hero-cover { object-fit: cover; object-position: center; }
+.hero-overlay {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.68) 78%, rgba(0, 0, 0, 0.12) 100%);
+}
+.hero-with-image .hero-title { max-width: min(720px, 78%); }
+.hero.hero-with-image {
+  --hero-title: #FFFCF5;
+  --hero-eyebrow: #FFE1A4;
+}
+.hero-with-image .hero-title { text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.hero-editor { padding-top: 94px; }
 
 .round-icon,
 .icon-button,
@@ -215,51 +277,41 @@ button {
 }
 
 .hero-content {
-  position: absolute;
-  inset: auto clamp(18px, 6vw, 58px) clamp(36px, 7vw, 74px);
-  display: flex;
-  align-items: center;
-  gap: clamp(16px, 4vw, 30px);
-  color: var(--theme-hero-text);
-}
-
-.hero-logo {
-  width: clamp(92px, 22vw, 170px);
-  height: clamp(92px, 22vw, 170px);
-  flex: 0 0 auto;
-  object-fit: contain;
-  border-radius: 18px;
-  background: var(--theme-hero-logo-bg);
-  box-shadow: 0 16px 40px var(--theme-logo-shadow);
-}
-
-.hero-logo-fallback {
-  display: grid;
-  place-items: center;
-  color: var(--highlight-color);
+  position: relative;
+  width: 100%;
+  color: var(--hero-title);
 }
 
 .hero-title {
   min-width: 0;
+  max-width: 720px;
+  text-align: left;
 }
 
 .hero-title span {
   display: block;
   margin-bottom: 8px;
-  color: var(--highlight-color);
-  font-weight: 900;
+  color: var(--hero-eyebrow);
+  font-size: 0.76rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0;
+  letter-spacing: 0.16em;
 }
 
 .hero-title h1 {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.35rem, 11vw, 6.3rem);
-  line-height: 0.88;
+  font-size: clamp(2.8rem, 5.8vw, 4.2rem);
+  line-height: 0.98;
   overflow-wrap: anywhere;
-  color: var(--restaurant-name-color);
+  color: var(--hero-title);
 }
+
+.hero-preview { border-radius: 12px; overflow: hidden; }
+.hero-preview .hero { min-height: 200px; padding: 30px 22px; }
+.hero-preview .hero-title h1 { font-size: clamp(2rem, 6vw, 3rem); }
+.hero-long-name .hero-title h1 { font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; }
+.hero-upload-help { margin: 0; color: var(--theme-text-muted); font-size: 0.85rem; }
 
 .icon-button,
 .mini-button,
@@ -299,10 +351,8 @@ button {
   margin: 0 auto 28px;
 }
 
-.reed-mark {
-  font-size: 3.2rem;
-  line-height: 1;
-  color: var(--highlight-color);
+.intro-copy {
+  grid-column: 2;
 }
 
 .intro-copy p {
@@ -868,24 +918,21 @@ textarea::placeholder {
   }
 
   .hero {
-    height: clamp(190px, 53vw, 330px);
+    min-height: 240px;
+    padding: 54px 26px 30px;
   }
 
   .hero-content {
-    inset-inline: 18px;
-    bottom: 34px;
-    gap: 14px;
-  }
-
-  .hero-logo {
-    width: clamp(72px, 22vw, 112px);
-    height: clamp(72px, 22vw, 112px);
-    border-radius: 14px;
+    width: 100%;
   }
 
   .hero-title h1 {
-    font-size: clamp(2rem, 10vw, 3.8rem);
+    font-size: clamp(2.5rem, 7vw, 3.8rem);
   }
+
+  .hero-editor { padding-top: 86px; }
+  .hero-with-image .hero-title { max-width: 100%; }
+  .hero-overlay { background: linear-gradient(90deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.62)); }
 
   .round-icon {
     width: 58px;
@@ -907,10 +954,6 @@ textarea::placeholder {
     grid-template-columns: 54px minmax(0, 1fr);
     gap: 12px;
     margin-bottom: 22px;
-  }
-
-  .reed-mark {
-    font-size: 2.55rem;
   }
 
   .category-tab {
@@ -984,21 +1027,12 @@ textarea::placeholder {
 
 @media (max-width: 430px) {
   .hero {
-    height: 196px;
-    border-bottom-left-radius: 48% 5%;
-    border-bottom-right-radius: 48% 5%;
+    min-height: 210px;
+    padding: 48px 22px 28px;
   }
 
   .hero-content {
-    inset-inline: 14px;
-    bottom: 26px;
-    gap: 10px;
-  }
-
-  .hero-logo {
-    width: 66px;
-    height: 66px;
-    border-radius: 12px;
+    width: 100%;
   }
 
   .hero-title span {
@@ -1007,10 +1041,11 @@ textarea::placeholder {
   }
 
   .hero-title h1 {
-    font-size: clamp(1.55rem, 8vw, 2rem);
-    line-height: 0.94;
-    overflow-wrap: normal;
+    font-size: clamp(2.3rem, 11.5vw, 2.85rem);
+    line-height: 0.98;
   }
+
+  .hero-editor { padding-top: 78px; }
 
   .admin-strip span {
     display: none;
@@ -1110,21 +1145,12 @@ textarea::placeholder {
 
 @media (max-width: 360px) {
   .hero {
-    height: 190px;
+    min-height: 200px;
+    padding-inline: 18px;
   }
 
   .hero-content {
-    inset-inline: 12px;
-    bottom: 24px;
-  }
-
-  .hero-logo {
-    width: 58px;
-    height: 58px;
-  }
-
-  .hero-title h1 {
-    font-size: 1.55rem;
+    width: 100%;
   }
 
   .admin-strip {

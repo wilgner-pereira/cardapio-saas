@@ -100,17 +100,33 @@ Nao use `DATABASE_URL` do Supabase junto com o perfil `dev`, porque `dev` e rese
 
 ## Seguranca & Producao
 
+As correções médias da Parte 2 e os procedimentos de implantação estão em [OPERACAO_STORAGE_E_LOGS.md](OPERACAO_STORAGE_E_LOGS.md). **A V13 exige inventário do storage para todos os tenants já existentes antes de liberar novos uploads**, incluindo investigação de órfãos; a cota padrão é 100 MiB por tenant. A V16 registra exclusões de imagens substituídas em uma fila persistente: após salvar a nova referência, remove a anterior pelo Supabase e repete automaticamente em caso de falha. O espaço só é liberado após confirmação da remoção. O documento também contém a CSP que deve proteger o HTML no host do frontend e o requisito operacional de retenção de logs por 30 dias.
+
 - **Autenticacao Segura:** Tokens JWT emitidos em cookies `HttpOnly` com flags `Secure` e `SameSite` configuradas.
-- **Headers HTTP:** HSTS obrigatório, Anti-Clickjacking (`X-Frame-Options: DENY`), Anti-MIME Sniffing (`X-Content-Type-Options: nosniff`) e `Referrer-Policy`.
+- **Headers HTTP:** HSTS obrigatório, Anti-Clickjacking (`X-Frame-Options: DENY`), Anti-MIME Sniffing (`X-Content-Type-Options: nosniff`), `Referrer-Policy` e `Permissions-Policy` bloqueando câmera, microfone e geolocalização.
 - **Validacao de Uploads:** Inspecao de *Magic Bytes* (assinatura binaria) para impedir upload de executaveis/scripts disfarçados de imagem.
 - **Multi-tenancy:** Consultas e mutacoes amarradas exclusivamente ao `estabelecimento_id` do usuario autenticado, prevenindo IDOR.
 - **Bootstrap de Administrador:** Criação segura via variáveis de ambiente no boot (`APP_BOOTSTRAP_ADMIN_ENABLED=true`) ou via endpoint protegido condicionalmente por `APP_SETUP_ADMIN_ENABLED=true`.
   O bootstrap cria somente contas novas e aborta a inicialização se o username ou email já estiver cadastrado, inclusive para administradores. Após o primeiro cadastro, configure `APP_BOOTSTRAP_ADMIN_ENABLED=false` antes de reiniciar. A criação da conta e do estabelecimento administrativo é transacional.
   Login e refresh entregam os JWTs exclusivamente pelos cookies `HttpOnly`; o JSON contém apenas a mensagem e os metadados da sessão. Clientes que usam Bearer precisam obter o token pelo `Set-Cookie` em um cliente HTTP autorizado a ler esse cabeçalho; o frontend continua usando cookies com `credentials: "include"`.
 
+### Sessoes de refresh e dados de demonstracao
+
+A V11 cria `refresh_session`: cada login abre uma sessao independente, permitindo varios dispositivos por usuario. O refresh JWT possui `sid` e `jti` aleatorios; o banco guarda o ID da sessao, ID do usuario, hash SHA-256 do `jti`, expiracao e revogacao. Nao guarda o JWT bruto. Cada refresh consome o identificador anterior em uma transacao com lock e emite outro; replay retorna 401. A duracao da sessao e absoluta, conforme `api.security.token.refresh-expiration-ms` (7 dias por padrao), sem prolongamento por rotacao.
+
+Logout exige CSRF e revoga a sessao no banco antes de limpar cookies. Mesmo um cookie anterior da mesma sessao pode revogar seu sucessor, cobrindo corrida com refresh. Outros logins permanecem validos. Access tokens ja emitidos continuam validos ate sua expiracao; esta etapa nao introduz revogacao de access tokens. Renovacoes simultaneas do mesmo token tem somente um vencedor, sem tolerancia para replay. O cliente compartilha uma unica renovacao pendente por pagina; abas diferentes ainda podem disputar o cookie e precisar de nova validacao/login.
+
+Para implantar V11/V12, pare as instancias antigas, aplique as migrations via Flyway iniciando a nova versao e publique o frontend atualizado. Nao mantenha instancias antigas que aceitem refresh sem consultar o banco. Refresh tokens antigos sem sessao persistida serao rejeitados, exigindo novo login. Os registros de sessao dependem do banco compartilhado; `prod`/`supabase` preservam revogacoes entre reinicios, enquanto o H2 em memoria de `dev` e descartavel. Registros expirados podem ser removidos por manutencao usando `DELETE FROM refresh_session WHERE expires_at < CURRENT_TIMESTAMP`; nao ha rotina automatica de limpeza nesta etapa. Remover um registro nunca torna um token valido.
+
+A V12 inutiliza as credenciais inseguras da seed historica somente quando coincidem o hash original, um dos cinco usernames, seu email demonstrativo e o slug do estabelecimento vinculado. Mantem IDs, roles, produtos e estabelecimentos; contas com atributos diferentes ou senha ja trocada permanecem intactas. O marcador gravado nao e uma senha nem um hash BCrypt autenticavel. A V4 permanece imutavel; bancos novos executam o saneamento antes de servir requests. Nao use contas da seed em producao/Supabase. Se uma conta demonstrativa tiver sido adotada legitimamente, um operador deve atribuir uma credencial BCrypt individual por procedimento administrativo controlado; nao ha endpoint de recuperacao de senha nesta etapa. Nao ha senha compartilhada de demonstracao habilitada, nem mesmo em dev. Para desenvolvimento, use contas novas criadas pelos fluxos administrativos existentes.
+
+O frontend remove a chave legada `cardapio.authUser` de ambos os storages e reconstroi a sessao via `/auth/session` somente quando uma rota protegida do painel e acessada. Essa consulta retorna o estado da sessao sem gerar um 401 para visitantes anonimos; o refresh e tentado quando ha cookie disponivel. `/auth/validate` continua protegido. Paginas publicas nao iniciam validate ou refresh. Os metadados ficam apenas em memoria, sem email; cookies HttpOnly continuam sendo a fonte de autenticacao. Nenhum JWT e gravado em localStorage ou sessionStorage. Falhas temporarias de validacao/refresh preservam uma sessao ja conhecida; ao abrir o painel, a interface oferece nova tentativa sem declarar logout.
+
 ## Endpoints principais
 
-As roles sao `ROLE_PLATFORM_ADMIN` (plataforma) e `ROLE_TENANT_ADMIN` (painel do estabelecimento). A migration V10 renomeia as antigas `ROLE_ADMIN` e `ROLE_USER`, respectivamente, preservando IDs e vinculos; nenhuma role antiga e reutilizada com outro significado. Um administrador de plataforma so acessa o painel se tambem possuir explicitamente a role de tenant. O JWT continua contendo apenas a identidade e o tipo; as permissoes sao recarregadas do banco a cada requisicao.
+As roles sao `ROLE_PLATFORM_ADMIN` (plataforma) e `ROLE_TENANT_ADMIN` (painel do estabelecimento). A migration V10 renomeia as antigas `ROLE_ADMIN` e `ROLE_USER`, respectivamente, preservando IDs e vinculos; nenhuma role antiga e reutilizada com outro significado. Um administrador de plataforma so acessa o painel se tambem possuir explicitamente a role de tenant. O JWT de acesso continua sem roles; o refresh inclui identificadores de sessao/rotacao. As permissoes e o estado ativo do estabelecimento sao recarregados do banco a cada requisicao. Desativar um tenant bloqueia imediatamente login, refresh e JWTs de acesso ainda não expirados; reativá-lo permite novamente o uso de um access token que ainda esteja dentro da validade. Administradores da plataforma permanecem operacionais mesmo se o estabelecimento administrativo estiver inativo.
+
+`GET /actuator/health` e os probes de liveness/readiness expõem somente o status mínimo. O grupo `GET /actuator/health/admin` mostra componentes deliberadamente permitidos e exige `ROLE_PLATFORM_ADMIN`; administradores de tenant não recebem esses detalhes. Eventos sensíveis são emitidos no logger `SECURITY_AUDIT` com IDs internos, sem email, username, senha, cookies ou tokens. O coletor de produção deve preservar acesso restrito e a retenção definida em `OPERACAO_STORAGE_E_LOGS.md`.
 
 Para implantar a V10, pare as instancias antigas antes de iniciar a nova versao com Flyway. Nao misture versoes antigas e novas durante a migration: as antigas deixarao de reconhecer as roles renomeadas. As migrations anteriores nao foram modificadas. Nao execute esta migration manualmente alem do Flyway.
 
@@ -125,8 +141,8 @@ O limitador guarda no maximo `RATE_LIMIT_MAX_KEYS=10000` combinacoes de IP e gru
 | Metodo | Rota | Autenticacao | Descricao |
 |---|---|---|---|
 | `POST` | `/auth/login` | Publico | Autentica e emite cookies `HttpOnly` |
-| `POST` | `/auth/refresh` | Publico (via cookie) | Renova o access token |
-| `POST` | `/auth/logout` | CSRF obrigatorio | Limpa cookies de autenticacao |
+| `POST` | `/auth/refresh` | Publico (via cookie) | Valida sessao persistida e rotaciona refresh/access |
+| `POST` | `/auth/logout` | CSRF obrigatorio | Revoga sessao de refresh e limpa cookies |
 | `GET` | `/auth/validate` | Autenticado | Valida token/sessao atual |
 | `GET` | `/auth/csrf` | Publico | Retorna token CSRF |
 | `POST` | `/setup/admin` | Flag + `X-Setup-Token` + CSRF | Cria primeiro admin inicial da plataforma |
@@ -139,6 +155,7 @@ O limitador guarda no maximo `RATE_LIMIT_MAX_KEYS=10000` combinacoes de IP e gru
 | `DELETE` | `/painel/produtos/{id}` | `ROLE_TENANT_ADMIN` | Exclui produto |
 | `GET` | `/painel/produtos` | `ROLE_TENANT_ADMIN` | Lista produtos do estabelecimento |
 | `POST` | `/painel/storage/upload` | `ROLE_TENANT_ADMIN` | Envia imagem validada ao storage |
+| `DELETE` | `/painel/storage/unused-image` | `ROLE_TENANT_ADMIN` + CSRF | Agenda limpeza de upload próprio sem referências |
 | `GET` | `/public/{slug}/cardapio` | Publico | Visualizacao do cardapio do estabelecimento |
 | `GET` | `/public/{slug}/cardapio/info` | Publico | Informacoes publicas do estabelecimento |
 | `GET` | `/public/storage/{fileName}` | Publico | Proxy seguro de download de imagem |

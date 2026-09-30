@@ -11,6 +11,17 @@ function getPath() {
   return window.location.pathname;
 }
 
+async function saveWithImage(file, currentUrl, save) {
+  const nextUrl = file ? await api.uploadImage(file) : currentUrl;
+  try {
+    return await save(nextUrl);
+  } catch (failure) {
+    // The server checks references before deleting, including after an ambiguous save failure.
+    if (file) void api.discardUnusedImage(nextUrl).catch(() => {});
+    throw failure;
+  }
+}
+
 function navigate(path) {
   window.history.pushState(null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
@@ -32,6 +43,8 @@ function parseRoute(path) {
 
 function sortProducts(products) {
   return [...products].sort((a, b) => {
+    const sectionComparison = (a.categoriaOrdem ?? 0) - (b.categoriaOrdem ?? 0);
+    if (sectionComparison !== 0) return sectionComparison;
     const categoryComparison = String(a.categoria || "").localeCompare(String(b.categoria || ""));
     if (categoryComparison !== 0) {
       return categoryComparison;
@@ -138,6 +151,7 @@ function HomePage() {
 
 function AdminMenuPage() {
   const auth = useAuth();
+  const validationStartedRef = useRef(false);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -147,7 +161,10 @@ function AdminMenuPage() {
   const [previewTheme, setPreviewTheme] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [establishmentModalOpen, setEstablishmentModalOpen] = useState(false);
+  const [heroPreview, setHeroPreview] = useState(null);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
+  const [categoryMoving, setCategoryMoving] = useState(false);
+  const categoryMoveRef = useRef(false);
   const themeButtonRef = useRef(null);
 
   const savedTheme = establishment?.tema || "artesanal";
@@ -184,6 +201,14 @@ function AdminMenuPage() {
   }, [applyAdminSnapshot]);
 
   useEffect(() => {
+    if (auth.status === "loading") {
+      if (!validationStartedRef.current) {
+        validationStartedRef.current = true;
+        void auth.validate();
+      }
+      return;
+    }
+
     if (auth.status === "anonymous") {
       navigate("/login");
       return;
@@ -192,7 +217,7 @@ function AdminMenuPage() {
     if (auth.status === "authenticated") {
       loadAdminData();
     }
-  }, [auth.status, loadAdminData]);
+  }, [auth.status, auth.validate, loadAdminData]);
 
   function handleSubmit(payload, imageFile) {
     setActionError("");
@@ -211,12 +236,8 @@ function AdminMenuPage() {
         product.id === productBeingEdited.id ? optimisticProduct : product
       ))));
 
-      void (async () => {
-        const persistedPayload = imageFile
-          ? { ...payload, imageUrl: await api.uploadImage(imageFile) }
-          : payload;
-        return api.updateProduct(productBeingEdited.id, persistedPayload);
-      })()
+      void saveWithImage(imageFile, payload.imageUrl, imageUrl =>
+        api.updateProduct(productBeingEdited.id, { ...payload, imageUrl }))
         .then(updatedProduct => {
           setProducts(current => sortProducts(current.map(product => (
             product.id === productBeingEdited.id
@@ -249,17 +270,15 @@ function AdminMenuPage() {
       id: temporaryId,
       ativo: true,
       ordem: nextOrder,
+      categoriaOrdem: categoryProducts[0]?.categoriaOrdem ??
+        (products.reduce((highest, product) => Math.max(highest, product.categoriaOrdem ?? -1), -1) + 1),
       _pending: true
     };
 
     setProducts(current => sortProducts([...current, optimisticProduct]));
 
-    void (async () => {
-      const persistedPayload = imageFile
-        ? { ...payload, imageUrl: await api.uploadImage(imageFile) }
-        : payload;
-      return api.createProduct(persistedPayload);
-    })()
+    void saveWithImage(imageFile, payload.imageUrl, imageUrl =>
+      api.createProduct({ ...payload, imageUrl }))
       .then(createdProduct => {
         setProducts(current => sortProducts(current.map(product => (
           product.id === temporaryId
@@ -278,38 +297,29 @@ function AdminMenuPage() {
       });
   }
 
-  function handleEstablishmentSubmit(payload, logoFile) {
+  function handleEstablishmentSubmit(payload, heroFile) {
     setActionError("");
-    const { logoUrl, ...establishmentPayload } = payload;
     const previousEstablishment = establishment;
-    const previewUrl = logoFile ? URL.createObjectURL(logoFile) : "";
-    const optimisticLogoUrl = previewUrl || logoUrl;
+    const heroPreviewUrl = heroFile ? URL.createObjectURL(heroFile) : "";
 
     setEstablishment(current => ({
       ...current,
-      ...establishmentPayload,
-      logoUrl: optimisticLogoUrl
+      ...payload,
+      heroImageUrl: heroPreviewUrl || payload.heroImageUrl
     }));
     setEstablishmentModalOpen(false);
+    setHeroPreview(null);
 
     void (async () => {
       try {
-        const [establishmentResponse, uploadedLogoUrl] = await Promise.all([
-          api.updateMyEstablishment(establishmentPayload),
-          logoFile ? api.uploadImage(logoFile) : Promise.resolve(logoUrl)
-        ]);
-        let updated = establishmentResponse;
-        if (uploadedLogoUrl !== (previousEstablishment?.logoUrl || "")) {
-          updated = await api.updateMyEstablishmentLogo(uploadedLogoUrl || "");
-        }
+        const updated = await saveWithImage(heroFile, payload.heroImageUrl, heroImageUrl =>
+          api.updateMyEstablishment({ ...payload, heroImageUrl }));
         setEstablishment(updated);
       } catch (err) {
         setEstablishment(previousEstablishment);
         setActionError(`Nao foi possivel salvar o estabelecimento: ${err.message}`);
       } finally {
-        if (previewUrl) {
-          URL.revokeObjectURL(previewUrl);
-        }
+        if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl);
       }
     })();
   }
@@ -366,7 +376,32 @@ function AdminMenuPage() {
       });
   }
 
+  async function handleMoveCategory(category, direction) {
+    if (categoryMoveRef.current || products.some(product => product._pending)) return;
+    const categories = [...new Set(sortProducts(products).map(product => product.categoria))];
+    const index = categories.indexOf(category);
+    const target = categories[index + direction];
+    if (index < 0 || !target) return;
+    categoryMoveRef.current = true;
+    setCategoryMoving(true);
+    setActionError("");
+    try {
+      const persisted = await api.updateCategoryOrder(category, target);
+      const ranks = new Map(persisted.map(product => [product.categoria, product.categoriaOrdem]));
+      setProducts(current => sortProducts(current.map(product => ({
+        ...product, categoriaOrdem: ranks.get(product.categoria) ?? product.categoriaOrdem
+      }))));
+    } catch (err) {
+      setActionError(`Nao foi possivel reordenar ${category}: ${err.message}`);
+      await loadAdminData({ silent: true });
+    } finally {
+      categoryMoveRef.current = false;
+      setCategoryMoving(false);
+    }
+  }
+
   function handleMoveProduct(product, direction) {
+    if (categoryMoveRef.current) return;
     if (product._pending) {
       return;
     }
@@ -447,11 +482,20 @@ function AdminMenuPage() {
     );
   }
 
+  if (auth.status === "unavailable") {
+    return (
+      <div className="center-screen">
+        <p role="alert">{auth.error}</p>
+        <button className="primary-action" onClick={() => auth.validate()}>Tentar novamente</button>
+      </div>
+    );
+  }
+
   return (
     <>
       <MenuShell
         username={establishment?.slug || auth.estabelecimentoSlug || auth.username || "meu-cardapio"}
-        establishment={establishment}
+        establishment={heroPreview === null ? establishment : { ...establishment, heroImageUrl: heroPreview }}
         theme={effectiveTheme}
         mode="admin"
         products={products}
@@ -473,6 +517,8 @@ function AdminMenuPage() {
         onEditEstablishment={() => setEstablishmentModalOpen(true)}
         onDelete={handleDelete}
         onMoveProduct={handleMoveProduct}
+        onMoveCategory={handleMoveCategory}
+        categoryMoving={categoryMoving}
         onToggleStatus={handleToggleStatus}
         onRefresh={() => loadAdminData()}
         onLogout={handleLogout}
@@ -505,6 +551,8 @@ function AdminMenuPage() {
       {establishmentModalOpen && (
         <EstablishmentEditorModal
           establishment={establishment}
+          theme={effectiveTheme}
+          onHeroPreview={setHeroPreview}
           onClose={() => setEstablishmentModalOpen(false)}
           onSubmit={handleEstablishmentSubmit}
         />

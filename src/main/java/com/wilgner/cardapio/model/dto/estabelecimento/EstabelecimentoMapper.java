@@ -23,6 +23,7 @@ public class EstabelecimentoMapper {
                 estabelecimento.getEndereco(),
                 estabelecimento.getEmailContato(),
                 estabelecimento.getLogoUrl(),
+                estabelecimento.getHeroImageUrl(),
                 estabelecimento.getTema(),
                 estabelecimento.getAtivo(),
                 estabelecimento.getCriadoEm(),
@@ -95,5 +96,8 @@ public class EstabelecimentoMapper {
         estabelecimento.setTelefone(dto.telefone());
         estabelecimento.setEndereco(dto.endereco());
         estabelecimento.setEmailContato(dto.emailContato());
+        if (dto.heroImageUrl() != null) {
+            estabelecimento.setHeroImageUrl(dto.heroImageUrl().isBlank() ? null : dto.heroImageUrl());
+        }
     }
 }

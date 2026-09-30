@@ -37,6 +37,13 @@ public class Estabelecimento {
     @Column(name = "logo_url", length = 2048)
     private String logoUrl;
 
+    @Column(name = "hero_image_url", length = 2048)
+    private String heroImageUrl;
+
+    public String getHeroImageUrl() { return heroImageUrl; }
+
+    public void setHeroImageUrl(String heroImageUrl) { this.heroImageUrl = heroImageUrl; }
+
     @Column(nullable = false, length = 20)
     private String tema = "artesanal";
 

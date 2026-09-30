@@ -1,9 +1,9 @@
 package com.wilgner.cardapio.service;
 
 import com.wilgner.cardapio.exception.ExternalServiceException;
+import com.wilgner.cardapio.exception.StorageWriteRejectedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -14,7 +14,10 @@ import reactor.core.publisher.Mono;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Set;
-import java.util.UUID;
+import java.net.URI;
+import jakarta.annotation.PostConstruct;
+import org.springframework.util.unit.DataSize;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Service
 public class SupabaseStorageService {
@@ -37,11 +40,32 @@ public class SupabaseStorageService {
     @Value("${supabase.bucket}")
     private String bucket;
 
+    @Value("${spring.servlet.multipart.max-file-size:5MB}")
+    private DataSize maxFileSize = DataSize.ofMegabytes(5);
+
+    @PostConstruct
+    void validateEndpoint() {
+        URI endpoint;
+        try {
+            endpoint = URI.create(projectUrl);
+        } catch (IllegalArgumentException ex) {
+            // URI parser messages include the supplied value, which may contain credentials.
+            throw new IllegalArgumentException("Configuração de storage inválida");
+        }
+        if (!Set.of("http", "https").contains(endpoint.getScheme()) || endpoint.getHost() == null
+                || endpoint.getUserInfo() != null || endpoint.getQuery() != null || endpoint.getFragment() != null
+                || !(endpoint.getPath().isEmpty() || endpoint.getPath().equals("/"))
+                || !bucket.matches("[a-zA-Z0-9_-]+")) {
+            throw new IllegalArgumentException("Configuração de storage inválida");
+        }
+        projectUrl = projectUrl.replaceAll("/+$", "");
+    }
+
     public SupabaseStorageService(WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder.build();
     }
 
-    public Mono<String> uploadFile(MultipartFile file) throws IOException {
+    public byte[] validateFile(MultipartFile file) throws IOException {
 
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Arquivo vazio");
@@ -54,6 +78,10 @@ public class SupabaseStorageService {
             );
         }
 
+        if (file.getSize() > maxFileSize.toBytes()) {
+            throw new MaxUploadSizeExceededException(maxFileSize.toBytes());
+        }
+
         byte[] bytes = file.getBytes();
 
         if (!isValidImageMagicBytes(bytes)) {
@@ -62,49 +90,71 @@ public class SupabaseStorageService {
             );
         }
 
-        String originalFilename =
-                file.getOriginalFilename() == null
-                        ? "imagem"
-                        : file.getOriginalFilename();
+        return bytes;
+    }
 
-        String original = originalFilename
-                .replaceAll("[^a-zA-Z0-9\\.\\-]", "_");
+    public String publicUrl(String key) {
+        return projectUrl + "/storage/v1/object/public/" + bucket + "/" + key;
+    }
 
-        String fileName = UUID.randomUUID() + "-" + original;
+    public Mono<Void> uploadBytes(String key, String contentType, byte[] bytes) {
+        String uploadUrl = projectUrl + "/storage/v1/object/" + bucket + "/" + key;
 
-        String uploadUrl =
-                projectUrl
-                        + "/storage/v1/object/"
-                        + bucket
-                        + "/"
-                        + fileName;
-
-        String publicUrl = projectUrl
-                + "/storage/v1/object/public/"
-                + bucket
-                + "/"
-                + fileName;
-
-        return webClient.put()
+        return webClient.post()
                 .uri(uploadUrl)
-                .contentType(MediaType.parseMediaType(file.getContentType()))
+                .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .header("apikey", apiKey)
                 .bodyValue(bytes)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, response ->
-                        response.createException()
-                                .map(ex -> new ExternalServiceException(
-                                        "Falha ao enviar imagem para o storage",
-                                        ex
-                                ))
-                )
+                .onStatus(status -> !status.is2xxSuccessful(), response ->
+                        Mono.error(response.statusCode().is4xxClientError()
+                                ? new StorageWriteRejectedException()
+                                : new ExternalServiceException("Falha ao enviar imagem para o storage")))
                 .bodyToMono(Void.class)
-                .timeout(Duration.ofMinutes(2))
+                .timeout(Duration.ofSeconds(45))
                 .onErrorMap(ex -> ex instanceof ExternalServiceException
                         ? ex
-                        : new ExternalServiceException("Falha ao enviar imagem para o storage", ex))
-                .thenReturn(publicUrl);
+                        : new ExternalServiceException("Falha ao enviar imagem para o storage"));
+    }
+
+    public Mono<Void> deleteFile(String key) {
+        validateObjectKey(key);
+        URI deleteUrl = UriComponentsBuilder.fromHttpUrl(projectUrl)
+                .pathSegment("storage", "v1", "object", bucket, key).build().encode().toUri();
+        return webClient.delete().uri(deleteUrl)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey).header("apikey", apiKey)
+                // A retry after a completed deletion may find the object already absent.
+                .retrieve().onStatus(status -> status.value() == 404, response -> Mono.empty())
+                .onStatus(status -> !status.is2xxSuccessful(), response ->
+                        Mono.error(new ExternalServiceException("Falha ao remover imagem do storage")))
+                .bodyToMono(Void.class).timeout(Duration.ofSeconds(45))
+                .onErrorMap(ex -> new ExternalServiceException("Falha ao remover imagem do storage"));
+    }
+
+    public String managedObjectKey(String url) {
+        if (url == null || url.isBlank()) return null;
+        try {
+            URI candidate = URI.create(url);
+            URI project = URI.create(projectUrl);
+            String prefix = "/storage/v1/object/public/" + bucket + "/";
+            if (!project.getScheme().equalsIgnoreCase(candidate.getScheme())
+                    || !project.getHost().equalsIgnoreCase(candidate.getHost())
+                    || project.getPort() != candidate.getPort() || candidate.getUserInfo() != null
+                    || candidate.getPath() == null || !candidate.getPath().startsWith(prefix)) return null;
+            String key = candidate.getPath().substring(prefix.length());
+            validateObjectKey(key);
+            return key;
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private void validateObjectKey(String key) {
+        if (key == null || key.isBlank() || key.length() > 100 || key.contains("/")
+                || key.contains("\\") || key.equals(".") || key.equals("..")) {
+            throw new IllegalArgumentException("Chave de imagem inválida");
+        }
     }
 
     public Mono<StoredFile> downloadFile(String fileName) {
@@ -112,7 +162,7 @@ public class SupabaseStorageService {
         if (fileName == null
                 || fileName.isBlank()
                 || fileName.contains("/")
-                || fileName.contains("\\")) {
+                || fileName.contains("\\") || fileName.equals(".") || fileName.equals("..")) {
             throw new IllegalArgumentException("Nome de arquivo inválido");
         }
 
@@ -125,7 +175,7 @@ public class SupabaseStorageService {
                         bucket,
                         fileName
                 )
-                .build()
+                .build().encode()
                 .toUriString();
 
         return webClient.get()
@@ -133,18 +183,13 @@ public class SupabaseStorageService {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .header("apikey", apiKey)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, response ->
-                        response.createException()
-                                .map(ex -> new ExternalServiceException(
-                                        "Falha ao buscar imagem no storage",
-                                        ex
-                                ))
-                )
+                .onStatus(status -> !status.is2xxSuccessful(), response ->
+                        Mono.error(new ExternalServiceException("Falha ao buscar imagem no storage")))
                 .toEntity(byte[].class)
-                .timeout(Duration.ofMinutes(2))
+                .timeout(Duration.ofSeconds(45))
                 .onErrorMap(ex -> ex instanceof ExternalServiceException
                         ? ex
-                        : new ExternalServiceException("Falha ao buscar imagem no storage", ex))
+                        : new ExternalServiceException("Falha ao buscar imagem no storage"))
                 .map(response -> {
                     if (response.getBody() == null) {
                         throw new ExternalServiceException("Imagem não encontrada no storage");
@@ -190,7 +235,7 @@ public class SupabaseStorageService {
                 && bytes[1] == 'I'
                 && bytes[2] == 'F'
                 && bytes[3] == '8'
-                && (bytes[4] == '7' || bytes[4] == '8')
+                && (bytes[4] == '7' || bytes[4] == '9')
                 && bytes[5] == 'a') {
             return true;
         }

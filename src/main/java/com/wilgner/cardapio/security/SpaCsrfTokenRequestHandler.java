@@ -45,8 +45,8 @@ public final class SpaCsrfTokenRequestHandler implements CsrfTokenRequestHandler
         CsrfTokenRequestHandler delegate = tokenCameFromHeader ? plain : xor;
 
         log.debug("Resolvendo CSRF metodo={} uri={} origem={}",
-                LogSanitizer.sanitize(request.getMethod()),
-                LogSanitizer.sanitize(request.getRequestURI()),
+                LogSanitizer.method(request.getMethod()),
+                LogSanitizer.route(request.getRequestURI()),
                 tokenCameFromHeader ? "header-spa" : "parametro-xor");
 
         return delegate.resolveCsrfTokenValue(request, csrfToken);

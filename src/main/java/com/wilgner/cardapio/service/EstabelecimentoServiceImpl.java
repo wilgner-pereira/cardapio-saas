@@ -19,13 +19,18 @@ public class EstabelecimentoServiceImpl {
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final UsuarioRepository usuarioRepository;
     private final EstabelecimentoMapper estabelecimentoMapper;
+    private final StorageImageLifecycle images;
+    private final jakarta.persistence.EntityManager entityManager;
 
     public EstabelecimentoServiceImpl(EstabelecimentoRepository estabelecimentoRepository,
                                       UsuarioRepository usuarioRepository,
-                                      EstabelecimentoMapper estabelecimentoMapper) {
+                                      EstabelecimentoMapper estabelecimentoMapper, StorageImageLifecycle images,
+                                      jakarta.persistence.EntityManager entityManager) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.estabelecimentoMapper = estabelecimentoMapper;
+        this.images = images;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -37,8 +42,9 @@ public class EstabelecimentoServiceImpl {
 
     @Transactional
     public EstabelecimentoResponseDTO atualizarMeuEstabelecimento(EstabelecimentoUpdateRequestDTO dto) {
-        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
+        Estabelecimento estabelecimento = getEstabelecimentoParaAtualizar();
 
+        if (dto.heroImageUrl() != null) images.replace(estabelecimento.getId(), estabelecimento.getHeroImageUrl(), dto.heroImageUrl());
         estabelecimentoMapper.updateEntity(dto, estabelecimento);
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
 
@@ -47,8 +53,9 @@ public class EstabelecimentoServiceImpl {
 
     @Transactional
     public EstabelecimentoResponseDTO atualizarLogo(String logoUrl) {
-        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
+        Estabelecimento estabelecimento = getEstabelecimentoParaAtualizar();
 
+        images.replace(estabelecimento.getId(), estabelecimento.getLogoUrl(), logoUrl);
         estabelecimento.setLogoUrl(logoUrl);
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
 
@@ -58,12 +65,20 @@ public class EstabelecimentoServiceImpl {
     @Transactional
     public EstabelecimentoResponseDTO atualizarTema(String tema) {
         CardapioTema temaValidado = CardapioTema.fromValor(tema);
-        Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
+        Estabelecimento estabelecimento = getEstabelecimentoParaAtualizar();
 
         estabelecimento.setTema(temaValidado.getValor());
         Estabelecimento atualizado = estabelecimentoRepository.save(estabelecimento);
 
         return estabelecimentoMapper.toDTO(atualizado);
+    }
+
+    private Estabelecimento getEstabelecimentoParaAtualizar() {
+        Long id = getEstabelecimentoAutenticado().getId();
+        Estabelecimento locked = estabelecimentoRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
+        entityManager.refresh(locked);
+        return locked;
     }
 
     private Estabelecimento getEstabelecimentoAutenticado() {

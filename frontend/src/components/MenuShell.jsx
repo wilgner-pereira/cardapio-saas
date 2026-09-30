@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
+import { MenuHero } from "./MenuHero.jsx";
 import {
   ArrowDown,
   ArrowUp,
@@ -13,7 +14,6 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  Utensils,
   X
 } from "./icons.js";
 
@@ -63,7 +63,7 @@ function groupByCategory(products, includeUnavailable) {
 export function MenuShell({
   username,
   establishment,
-  products,
+  products = [],
   theme,
   mode = "public",
   loading = false,
@@ -75,6 +75,8 @@ export function MenuShell({
   onEditEstablishment,
   onDelete,
   onMoveProduct,
+  onMoveCategory,
+  categoryMoving = false,
   onToggleStatus,
   onRefresh,
   onLogout,
@@ -169,7 +171,7 @@ export function MenuShell({
 
   return (
     <main className="menu-page" data-theme={effectiveTheme}>
-      <section className="hero">
+      <MenuHero name={storeName} imageUrl={establishment?.heroImageUrl} isAdmin={isAdmin}>
         {isAdmin && (
           <div className="admin-strip">
             <button
@@ -195,14 +197,7 @@ export function MenuShell({
           </div>
         )}
 
-        <div className="hero-content">
-          <HeroLogo logoUrl={establishment?.logoUrl} storeName={storeName} />
-          <div className="hero-title">
-            <span>{isAdmin ? "Editor visual" : "Cardapio digital"}</span>
-            <h1>{storeName}</h1>
-          </div>
-        </div>
-      </section>
+      </MenuHero>
 
       <section className="paper">
         <nav ref={categoryTabsRef} className="category-tabs" aria-label="Categorias do cardapio">
@@ -228,7 +223,6 @@ export function MenuShell({
         </nav>
 
         <div className="intro-row">
-          <span className="reed-mark" aria-hidden="true">〽</span>
           <div className="intro-copy">
             <p>
               {description || `Cardapio digital de ${storeName}.`}
@@ -253,11 +247,25 @@ export function MenuShell({
           <StatePanel title={isAdmin ? "Nenhum produto cadastrado" : "Cardapio indisponivel"} />
         )}
 
-        {!loading && !error && categories.map(category => (
+        {!loading && !error && categories.map((category, categoryIndex) => (
           <section className="menu-section" id={`category-${normalize(category)}`} key={category}>
             <div className="section-title-row">
               <div className="wood-title">
                 <h2>{category}</h2>
+                {isAdmin && (
+                  <div className="category-order-actions" aria-label={`Ordenar seção ${category}`}>
+                    <button className="mini-button" type="button"
+                      disabled={categoryMoving || products.some(product => product._pending) || categoryIndex === 0}
+                      onClick={() => onMoveCategory(category, -1)} aria-label={`Subir seção ${category}`}>
+                      <ArrowUp size={16} />
+                    </button>
+                    <button className="mini-button" type="button"
+                      disabled={categoryMoving || products.some(product => product._pending) || categoryIndex === categories.length - 1}
+                      onClick={() => onMoveCategory(category, 1)} aria-label={`Descer seção ${category}`}>
+                      <ArrowDown size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="ornament" aria-hidden="true" />
             </div>
@@ -266,7 +274,7 @@ export function MenuShell({
               {grouped.get(category).map(product => (
                 <ProductCard
                   key={product.id}
-                  product={product}
+                  product={categoryMoving ? { ...product, _pending: true } : product}
                   isAdmin={isAdmin}
                   onEdit={onEdit}
                   onDelete={onDelete}
@@ -327,32 +335,6 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
         </div>
       )}
     </article>
-  );
-}
-
-function HeroLogo({ logoUrl, storeName }) {
-  const [failed, setFailed] = useState(false);
-  const resolvedLogoUrl = api.resolveImageUrl(logoUrl);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [resolvedLogoUrl]);
-
-  if (!resolvedLogoUrl || failed) {
-    return (
-      <div className="hero-logo hero-logo-fallback" aria-hidden="true">
-        <Utensils size={34} />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      className="hero-logo"
-      src={resolvedLogoUrl}
-      alt={`Logo ${storeName}`}
-      onError={() => setFailed(true)}
-    />
   );
 }
 
