@@ -30,6 +30,17 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
     setError("");
   }, [product]);
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   function updateField(event) {
     const { name, value } = event.target;
     setForm(current => ({ ...current, [name]: value }));
@@ -55,7 +66,13 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onClick={event => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
       <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={20} />
@@ -92,7 +109,7 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
             <input type="file" accept={IMAGE_ACCEPT} onChange={event => setFile(event.target.files?.[0] || null)} />
           </label>
 
-          {error && <p className="form-error">{error}</p>}
+          {error && <p className="form-error" role="alert">{error}</p>}
 
           <button className="primary-action" type="submit" disabled={saving}>
             {saving ? <Loader2 className="spin" size={18} /> : null}

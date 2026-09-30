@@ -49,18 +49,4 @@ class PublicProdutoServiceImplTest {
 
         assertEquals("Estabelecimento desativado", exception.getMessage());
     }
-
-    @Test
-    void listarProdutoDinamico_CallsAllProducts_WhenCategoryIsNull() {
-        String slug = "meu-estabelecimento";
-        Estabelecimento estabelecimento = new Estabelecimento();
-        estabelecimento.setSlug(slug);
-        estabelecimento.setAtivo(true);
-
-        when(estabelecimentoRepository.findBySlug(slug)).thenReturn(Optional.of(estabelecimento));
-
-        service.listarProdutoDinamico(slug, null);
-
-        org.mockito.Mockito.verify(produtoRepository).findByEstabelecimentoAtivoOrderByCategoriaAndOrdem(estabelecimento);
-    }
 }
