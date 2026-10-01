@@ -1,4 +1,4 @@
-export function NotFoundState({ Icon, title, description, detail, onHome }) {
+export function NotFoundState({ Icon, title, description, detail }) {
   return (
     <main className="not-found-page">
       <div className="not-found-content">
@@ -10,9 +10,6 @@ export function NotFoundState({ Icon, title, description, detail, onHome }) {
           <p>{description}</p>
           <p>{detail}</p>
         </div>
-        <button className="primary-action not-found-action" type="button" onClick={onHome}>
-          Voltar ao início
-        </button>
       </div>
     </main>
   );

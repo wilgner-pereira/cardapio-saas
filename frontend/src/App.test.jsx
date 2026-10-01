@@ -139,10 +139,8 @@ describe("not found pages", () => {
     expect(container.querySelector(".menu-page")).toBeNull();
     expect(screen.queryByRole("button", { name: "Compartilhar" })).not.toBeInTheDocument();
     expect(screen.queryByText("Estabelecimento não encontrado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Voltar ao início" })).not.toBeInTheDocument();
     expect(window.location.pathname).toBe("/cardapio/pizz");
-    fireEvent.click(screen.getByRole("button", { name: "Voltar ao início" }));
-    expect(window.location.pathname).toBe("/");
-    expect(screen.getByRole("button", { name: "Entrar no painel" })).toBeInTheDocument();
   });
 
   it("does not show the previous establishment while another slug is loading", async () => {
@@ -192,7 +190,8 @@ describe("not found pages", () => {
     const { container } = renderApp(path);
     expect(screen.getByRole("heading", { name: "Página não encontrada" })).toBeInTheDocument();
     expect(screen.getByText("Desculpe, não encontramos esta página.")).toBeInTheDocument();
-    expect(screen.getByText("Confira o endereço ou volte para o início.")).toBeInTheDocument();
+    expect(screen.getByText("Confira o endereço e tente novamente.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Voltar ao início" })).not.toBeInTheDocument();
     expect(container.querySelector(".menu-page")).toBeNull();
     expect(window.location.pathname).toBe(path);
     expect(api.getPublicMenu).not.toHaveBeenCalled();
@@ -200,14 +199,11 @@ describe("not found pages", () => {
     expect(api.validate).not.toHaveBeenCalled();
   });
 
-  it("returns from the global not found page through SPA navigation by keyboard", async () => {
-    const user = userEvent.setup();
+  it("does not offer navigation controls on the global not found page", () => {
     renderApp("/banana");
-    await user.tab();
-    expect(screen.getByRole("button", { name: "Voltar ao início" })).toHaveFocus();
-    await user.keyboard("{Enter}");
-    expect(window.location.pathname).toBe("/");
-    expect(screen.getByRole("button", { name: "Entrar no painel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/banana");
   });
 });
 

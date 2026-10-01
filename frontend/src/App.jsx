@@ -105,8 +105,7 @@ export function App() {
 
   return <NotFoundState Icon={Search} title="Página não encontrada"
     description="Desculpe, não encontramos esta página."
-    detail="Confira o endereço ou volte para o início."
-    onHome={() => navigate("/")} />;
+    detail="Confira o endereço e tente novamente." />;
 }
 
 function PublicMenuPage({ username }) {
@@ -160,8 +159,7 @@ function PublicMenuPage({ username }) {
   if (notFound) {
     return <NotFoundState Icon={Utensils} title="Cardápio não encontrado"
       description="Desculpe, não encontramos um cardápio para este endereço."
-      detail="Confira o link e tente novamente."
-      onHome={() => navigate("/")} />;
+      detail="Confira o link e tente novamente." />;
   }
 
   return (

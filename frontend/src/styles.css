@@ -1090,11 +1090,6 @@ textarea::placeholder {
 .not-found-page {
   --theme-heading: #0B0B0B;
   --theme-text-muted: #5F6368;
-  --theme-primary-text: #FFFFFF;
-  --theme-button-gradient: #80551A;
-  --theme-button-hover-gradient: #694412;
-  --theme-button-active-gradient: #54370F;
-  --theme-focus-ring: #80551A;
   min-height: 100svh;
   display: grid;
   place-items: center;
@@ -1138,7 +1133,6 @@ textarea::placeholder {
 }
 
 .not-found-copy p { margin: 0; }
-.not-found-action { margin-top: 10px; padding: 0 28px; }
 
 .login-visual {
   min-width: 0;
