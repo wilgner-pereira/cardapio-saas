@@ -1421,6 +1421,30 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.scroll-to-top-button {
+  width: 48px;
+  height: 48px;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  opacity: 0;
+  transform: translateY(6px) scale(0.9);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+.scroll-to-top-button.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-to-top-button { transition: none; }
+}
+
 /* Theme Picker Modal Styles */
 .theme-modal {
   width: min(100%, 780px);

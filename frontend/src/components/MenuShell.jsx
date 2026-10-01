@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { MenuHero } from "./MenuHero.jsx";
+import { ScrollToTopButton } from "./ScrollToTopButton.jsx";
 import {
   ArrowDown,
   ArrowUp,
@@ -373,6 +374,9 @@ export function MenuShell({
           <span />
         </div>
       </section>
+      {!isAdmin && !loading && !error && categories.length > 0 && (
+        <ScrollToTopButton categoryTabsRef={categoryTabsRef} />
+      )}
     </main>
   );
 }

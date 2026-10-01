@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MenuShell } from './MenuShell';
 
 describe('MenuShell', () => {
@@ -215,6 +216,117 @@ describe('MenuShell', () => {
     fireEvent.mouseUp(window);
     fireEvent.click(category, { detail: 1 });
     expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  describe('back to top', () => {
+    let notifyIntersection;
+    let observer;
+
+    beforeEach(() => {
+      observer = { observe: vi.fn(), disconnect: vi.fn() };
+      vi.stubGlobal('IntersectionObserver', vi.fn(function (callback) {
+        notifyIntersection = callback;
+        return observer;
+      }));
+      vi.stubGlobal('scrollTo', vi.fn());
+    });
+
+    function reportPosition(isIntersecting, top, bottom) {
+      act(() => notifyIntersection([{
+        isIntersecting,
+        boundingClientRect: { top, bottom },
+        rootBounds: { top: 0 },
+      }]));
+    }
+
+    it('observes the category bar and stays hidden before it is reached, regardless of scroll pixels', () => {
+      const { container } = render(<MenuShell username="test" products={mockProducts} />);
+      const button = container.querySelector('.scroll-to-top-button');
+      expect(observer.observe).toHaveBeenCalledWith(screen.getByRole('navigation'));
+      expect(screen.queryByRole('button', { name: 'Voltar ao topo' })).not.toBeInTheDocument();
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('tabindex', '-1');
+      vi.stubGlobal('scrollY', 10000);
+      reportPosition(false, 1500, 1570);
+      expect(button).not.toHaveClass('is-visible');
+      expect(button).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('appears only after the entire bar passes above the viewport and hides when any part returns', () => {
+      const { container } = render(<MenuShell username="test" products={mockProducts} />);
+      const button = container.querySelector('.scroll-to-top-button');
+      reportPosition(true, 0, 70); // The sticky bar remains visible.
+      expect(button).not.toHaveClass('is-visible');
+      reportPosition(true, -60, 10);
+      expect(button).not.toHaveClass('is-visible');
+      reportPosition(false, -71, -1);
+      expect(screen.getByRole('button', { name: 'Voltar ao topo' })).toBe(button);
+      expect(button).toHaveClass('is-visible');
+      expect(button).toBeEnabled();
+      expect(button).toHaveAttribute('tabindex', '0');
+      reportPosition(true, -69, 1);
+      expect(button).not.toHaveClass('is-visible');
+      expect(button).toHaveAttribute('aria-hidden', 'true');
+      expect(button).toBeDisabled();
+      // Keep the element mounted so CSS can animate its disappearance.
+      expect(button).toBeInTheDocument();
+    });
+
+    it('scrolls smoothly to the top by click, Enter and Space', async () => {
+      const user = userEvent.setup();
+      render(<MenuShell username="test" products={mockProducts} />);
+      reportPosition(false, -71, -1);
+      const button = screen.getByRole('button', { name: 'Voltar ao topo' });
+      await user.click(button);
+      expect(button).not.toHaveFocus();
+      button.focus();
+      expect(button).toHaveFocus();
+      await user.keyboard('{Enter}');
+      expect(button).not.toHaveFocus();
+      button.focus();
+      await user.keyboard(' ');
+      expect(button).not.toHaveFocus();
+      expect(window.scrollTo).toHaveBeenCalledTimes(3);
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    });
+
+    it('disconnects when the public menu is unmounted', () => {
+      const { unmount } = render(<MenuShell username="test" products={mockProducts} />);
+      unmount();
+      expect(observer.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      { mode: 'admin' },
+      { loading: true },
+      { error: 'Falha ao carregar' },
+      { products: [] },
+      { products: [{ ...mockProducts[0], ativo: false }] },
+    ])('does not add a button or observer for admin, loading, error or unavailable menus: %o', props => {
+      const { container } = render(<MenuShell username="test" products={mockProducts} {...props} />);
+      expect(container.querySelector('.scroll-to-top-button')).not.toBeInTheDocument();
+      expect(IntersectionObserver).not.toHaveBeenCalled();
+    });
+
+    it('supports menus that load asynchronously and disconnects when entering admin mode', () => {
+      const { rerender } = render(<MenuShell username="test" loading />);
+      expect(IntersectionObserver).not.toHaveBeenCalled();
+      rerender(<MenuShell username="test" products={mockProducts} />);
+      expect(observer.observe).toHaveBeenCalledWith(screen.getByRole('navigation'));
+      reportPosition(false, -71, -1);
+      expect(screen.getByRole('button', { name: 'Voltar ao topo' })).toBeEnabled();
+      rerender(<MenuShell username="test" products={mockProducts} mode="admin" />);
+      expect(observer.disconnect).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: 'Voltar ao topo' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the menu functional and the button hidden without IntersectionObserver support', () => {
+      vi.stubGlobal('IntersectionObserver', undefined);
+      render(<MenuShell username="test" products={mockProducts} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Lanches' }));
+      expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+      expect(screen.queryByRole('button', { name: 'Voltar ao topo' })).not.toBeInTheDocument();
+    });
   });
 
   it('renders loading state', () => {
