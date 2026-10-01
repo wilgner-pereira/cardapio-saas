@@ -106,8 +106,12 @@ export function MenuShell({
   const isAdmin = mode === "admin";
   const storeName = establishment?.nome || formatStoreName(username);
   const description = establishment?.descricao || "";
-  const grouped = useMemo(() => groupByCategory(products, isAdmin), [isAdmin, products]);
-  const categories = Array.from(grouped.keys());
+  const { grouped, categories } = useMemo(() => {
+    // ⚡ Bolt Optimization: Group products by category and derive categories array in a single memoization block.
+    // Avoids re-creating the categories array or invoking separate useMemo hooks on every render.
+    const g = groupByCategory(products, isAdmin);
+    return { grouped: g, categories: Array.from(g.keys()) };
+  }, [isAdmin, products]);
   const selectedCategory = activeCategory && grouped.has(activeCategory) ? activeCategory : categories[0];
   const effectiveTheme = theme || establishment?.tema || "artesanal";
   const instagramUrl = safeInstagramUrl(establishment?.instagramUrl);
