@@ -1,4 +1,4 @@
-import { validateImage } from "./uploadValidation.js";
+import { validateOptimizedImage } from "./uploadValidation.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const AUTH_USER_KEY = "cardapio.authUser";
@@ -378,10 +378,11 @@ export const api = {
     return request("/painel/storage/unused-image", { method: "DELETE", body: { url } });
   },
 
-  async uploadImage(file) {
-    validateImage(file);
+  async uploadImage(file, type) {
+    validateOptimizedImage(file, type);
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("type", type);
 
     return request("/painel/storage/upload", {
       method: "POST",

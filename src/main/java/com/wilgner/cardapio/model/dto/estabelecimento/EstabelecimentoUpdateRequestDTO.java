@@ -28,6 +28,15 @@ public record EstabelecimentoUpdateRequestDTO(
         @Size(max = 2048, message = "URL da capa deve ter no máximo 2048 caracteres")
         @Pattern(regexp = "^(|https?://\\S+)$", message = "URL da capa inválida")
         @org.hibernate.validator.constraints.URL(message = "URL da capa inválida")
-        String heroImageUrl
+        String heroImageUrl,
+
+        @Size(max = 2048, message = "URL do Instagram deve ter no máximo 2048 caracteres")
+        @Pattern(regexp = "^(|https?://[^/\\\\?#@\\s]+(?:[/?#]\\S*)?)$", message = "URL do Instagram inválida")
+        @org.hibernate.validator.constraints.URL(message = "URL do Instagram inválida")
+        String instagramUrl,
+
+        @Size(max = 30, message = "WhatsApp deve ter no máximo 30 caracteres")
+        @Pattern(regexp = "^(|(?=.*[0-9])[0-9+() -]+)$", message = "WhatsApp inválido: use números, espaços, +, -, ( e )")
+        String whatsapp
 ) {
 }

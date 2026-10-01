@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.jsx";
 import { AuthProvider } from "./auth/AuthContext.jsx";
 import { api } from "./api/client.js";
+import { optimizeImage } from "./api/imageOptimization.js";
+
+vi.mock("./api/imageOptimization.js", () => ({
+  optimizeImage: vi.fn(async () => new File(["webp"], "optimized.webp", { type: "image/webp" }))
+}));
 
 vi.mock("./api/client.js", () => ({
   api: {
@@ -88,6 +93,7 @@ describe("route-scoped session validation", () => {
     fireEvent.change(container.querySelector('input[type="file"]'), {
       target: { files: [new File(["image"], "new.png", { type: "image/png" })] }
     });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
     await waitFor(() => expect(api.discardUnusedImage).toHaveBeenCalledWith(uploadedUrl));
     expect(api.discardUnusedImage).not.toHaveBeenCalledWith(previousUrl);
@@ -106,7 +112,7 @@ describe("route-scoped session validation", () => {
     await screen.findByText("Nenhum produto cadastrado");
     fireEvent.click(screen.getByRole("button", { name: "Editar estabelecimento" }));
     fireEvent.change(screen.getByLabelText("Imagem de capa"), { target: { files: [new File(["image"], "cover.jpg", { type: "image/jpeg" })] } });
-    expect(container.querySelector(".menu-page .hero-cover")).toHaveAttribute("src", "blob:http://localhost/draft");
+    await waitFor(() => expect(container.querySelector(".menu-page .hero-cover")).toHaveAttribute("src", "blob:http://localhost/draft"));
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(container.querySelector(".menu-page .hero-cover")).toHaveAttribute("src", "https://example.com/saved.jpg");
     expect(api.uploadImage).not.toHaveBeenCalled();
@@ -127,10 +133,12 @@ describe("route-scoped session validation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Editar estabelecimento" }));
     const image = new File(["image"], "cover.jpg", { type: "image/jpeg" });
     fireEvent.change(screen.getByLabelText("Imagem de capa"), { target: { files: [image] } });
-    expect(container.querySelector(".menu-page .hero-cover")).toHaveAttribute("src", "blob:http://localhost/cover");
+    await waitFor(() => expect(container.querySelector(".menu-page .hero-cover")).toHaveAttribute("src", "blob:http://localhost/cover"));
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
     await waitFor(() => expect(container.querySelector(".menu-page .hero-cover")).toHaveAttribute("src", persisted.heroImageUrl));
-    expect(api.uploadImage).toHaveBeenCalledWith(image);
+    expect(api.uploadImage).toHaveBeenCalledWith(expect.objectContaining({ name: "optimized.webp", type: "image/webp" }), "hero");
+    expect(api.uploadImage.mock.calls[0][0]).not.toBe(image);
+    expect(optimizeImage).toHaveBeenCalledTimes(1);
     expect(api.updateMyEstablishment).toHaveBeenCalledWith(expect.objectContaining({ heroImageUrl: persisted.heroImageUrl }));
     unmount();
     api.getPublicMenu.mockResolvedValue([]);

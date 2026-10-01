@@ -34,6 +34,12 @@ public class Estabelecimento {
     @Column(name = "email_contato", length = 255)
     private String emailContato;
 
+    @Column(name = "instagram_url", length = 2048)
+    private String instagramUrl;
+
+    @Column(length = 30)
+    private String whatsapp;
+
     @Column(name = "logo_url", length = 2048)
     private String logoUrl;
 
@@ -139,6 +145,22 @@ public class Estabelecimento {
 
     public void setEmailContato(String emailContato) {
         this.emailContato = emailContato;
+    }
+
+    public String getInstagramUrl() {
+        return instagramUrl;
+    }
+
+    public void setInstagramUrl(String instagramUrl) {
+        this.instagramUrl = instagramUrl;
+    }
+
+    public String getWhatsapp() {
+        return whatsapp;
+    }
+
+    public void setWhatsapp(String whatsapp) {
+        this.whatsapp = whatsapp;
     }
 
     public String getLogoUrl() {

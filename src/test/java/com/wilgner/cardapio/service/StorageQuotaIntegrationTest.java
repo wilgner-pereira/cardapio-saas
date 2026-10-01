@@ -49,7 +49,7 @@ class StorageQuotaIntegrationTest {
     @MockBean SupabaseStorageService remote;
 
     @BeforeEach void remote() throws Exception {
-        when(remote.validateFile(any())).thenReturn(new byte[12]);
+        when(remote.validateFile(any(), any())).thenReturn(new byte[12]);
         when(remote.publicUrl(anyString())).thenAnswer(call -> "https://storage.example.test/" + call.getArgument(0));
         when(remote.uploadBytes(anyString(), anyString(), any())).thenReturn(Mono.empty());
         when(remote.deleteFile(anyString())).thenReturn(Mono.empty());
@@ -58,8 +58,8 @@ class StorageQuotaIntegrationTest {
     @Test @Order(1) @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void belowQuotaIsPersistedBeforeRestart() throws Exception {
         persistedTenant = tenant();
-        uploads.upload(persistedTenant, file());
-        uploads.upload(persistedTenant, file());
+        uploads.upload(persistedTenant, file(), ImageUploadProfile.PRODUCT);
+        uploads.upload(persistedTenant, file(), ImageUploadProfile.PRODUCT);
         assertThat(used(persistedTenant)).isEqualTo(24);
         previous = context;
     }
@@ -68,27 +68,27 @@ class StorageQuotaIntegrationTest {
     void reopenedContextKeepsQuotaAndRejectsOverLimit() {
         assertThat(context).isNotSameAs(previous);
         assertThat(used(persistedTenant)).isEqualTo(24);
-        assertThatThrownBy(() -> uploads.upload(persistedTenant, file())).isInstanceOf(StorageQuotaException.class);
+        assertThatThrownBy(() -> uploads.upload(persistedTenant, file(), ImageUploadProfile.PRODUCT)).isInstanceOf(StorageQuotaException.class);
         verify(remote, never()).uploadBytes(anyString(), anyString(), any());
     }
 
     @Test void tenantsHaveIndependentQuota() throws Exception {
         long first = tenant(), second = tenant();
-        uploads.upload(first, file());
-        uploads.upload(first, file());
-        uploads.upload(second, file());
+        uploads.upload(first, file(), ImageUploadProfile.PRODUCT);
+        uploads.upload(first, file(), ImageUploadProfile.PRODUCT);
+        uploads.upload(second, file(), ImageUploadProfile.PRODUCT);
         assertThat(used(first)).isEqualTo(24);
         assertThat(used(second)).isEqualTo(12);
     }
 
     @Test void concurrentReservationsCannotExceedQuota() throws Exception {
         long tenant = tenant();
-        uploads.upload(tenant, file());
+        uploads.upload(tenant, file(), ImageUploadProfile.PRODUCT);
         CountDownLatch start = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {
             Callable<Boolean> attempt = () -> {
                 start.await(10, TimeUnit.SECONDS);
-                try { uploads.upload(tenant, file()); return true; }
+                try { uploads.upload(tenant, file(), ImageUploadProfile.PRODUCT); return true; }
                 catch (StorageQuotaException e) { return false; }
             };
             var first = pool.submit(attempt); var second = pool.submit(attempt);
@@ -102,7 +102,7 @@ class StorageQuotaIntegrationTest {
     @Test void explicitlyRejectedUploadReleasesReservation() throws Exception {
         long tenant = tenant();
         when(remote.uploadBytes(anyString(), anyString(), any())).thenReturn(Mono.error(new StorageWriteRejectedException()));
-        assertThatThrownBy(() -> uploads.upload(tenant, file())).isInstanceOf(ExternalServiceException.class);
+        assertThatThrownBy(() -> uploads.upload(tenant, file(), ImageUploadProfile.PRODUCT)).isInstanceOf(ExternalServiceException.class);
         assertThat(used(tenant)).isZero();
         assertThat(jdbc.queryForObject("select status from storage_object where estabelecimento_id=?", String.class, tenant)).isEqualTo("DELETED");
         verify(remote, never()).deleteFile(anyString());
@@ -111,7 +111,7 @@ class StorageQuotaIntegrationTest {
     @Test void timedOutWriteStaysChargedEvenWhenImmediateCleanupSucceeds() throws Exception {
         long tenant = tenant();
         when(remote.uploadBytes(anyString(), anyString(), any())).thenReturn(Mono.error(new RuntimeException("timeout")));
-        assertThatThrownBy(() -> uploads.upload(tenant, file())).isInstanceOf(ExternalServiceException.class);
+        assertThatThrownBy(() -> uploads.upload(tenant, file(), ImageUploadProfile.PRODUCT)).isInstanceOf(ExternalServiceException.class);
         assertThat(used(tenant)).isEqualTo(12);
         assertThat(jdbc.queryForObject("select status from storage_object where estabelecimento_id=?", String.class, tenant)).isEqualTo("UNCERTAIN");
         verify(remote).deleteFile(anyString());
@@ -121,7 +121,7 @@ class StorageQuotaIntegrationTest {
         long tenant = tenant();
         when(remote.uploadBytes(anyString(), anyString(), any())).thenReturn(Mono.error(new RuntimeException("timeout")));
         when(remote.deleteFile(anyString())).thenReturn(Mono.error(new RuntimeException("offline")));
-        assertThatThrownBy(() -> uploads.upload(tenant, file())).isInstanceOf(ExternalServiceException.class);
+        assertThatThrownBy(() -> uploads.upload(tenant, file(), ImageUploadProfile.PRODUCT)).isInstanceOf(ExternalServiceException.class);
         assertThat(used(tenant)).isEqualTo(12);
         assertThat(jdbc.queryForObject("select status from storage_object where estabelecimento_id=?", String.class, tenant)).isEqualTo("UNCERTAIN");
     }
@@ -142,18 +142,21 @@ class StorageQuotaIntegrationTest {
         user.setRoles(Set.of(roles.findByRoleName("ROLE_TENANT_ADMIN").orElseThrow()));
         user = users.save(user);
         var cookie = new Cookie("access_token", tokens.generateAccessToken(user));
+        mvc.perform(multipart("/painel/storage/upload").file(file()).cookie(cookie).with(csrf())).andExpect(status().isBadRequest());
+        mvc.perform(multipart("/painel/storage/upload").file(file()).param("type", "logo").cookie(cookie).with(csrf())).andExpect(status().isBadRequest());
+        assertThat(used(first)).isZero();
         for (int i = 0; i < 2; i++) {
-            mvc.perform(multipart("/painel/storage/upload").file(file()).param("estabelecimento_id", Long.toString(second))
+            mvc.perform(multipart("/painel/storage/upload").file(file()).param("type", "product").param("estabelecimento_id", Long.toString(second))
                     .cookie(cookie).with(csrf())).andExpect(status().isOk());
         }
-        mvc.perform(multipart("/painel/storage/upload").file(file()).cookie(cookie).with(csrf())).andExpect(status().isConflict());
+        mvc.perform(multipart("/painel/storage/upload").file(file()).param("type", "product").cookie(cookie).with(csrf())).andExpect(status().isConflict());
         assertThat(used(first)).isEqualTo(24);
         assertThat(used(second)).isZero();
     }
 
     @Test void removingTenantRetainsObjectForOrphanInventory() throws Exception {
         long tenant = tenant();
-        String url = uploads.upload(tenant, file());
+        String url = uploads.upload(tenant, file(), ImageUploadProfile.PRODUCT);
         establishments.deleteById(tenant);
         assertThat(jdbc.queryForObject("select count(*) from storage_object where public_url=? and estabelecimento_id is null", Integer.class, url)).isEqualTo(1);
     }
@@ -165,5 +168,5 @@ class StorageQuotaIntegrationTest {
     long used(long tenant) {
         return jdbc.queryForObject("select coalesce(sum(size_bytes),0) from storage_object where estabelecimento_id=? and status <> 'DELETED'", Long.class, tenant);
     }
-    MockMultipartFile file() { return new MockMultipartFile("file", "image.png", "image/png", new byte[12]); }
+    MockMultipartFile file() { return new MockMultipartFile("file", "optimized.webp", "image/webp", new byte[12]); }
 }

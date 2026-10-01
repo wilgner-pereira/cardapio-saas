@@ -14,8 +14,8 @@ function getPath() {
   return window.location.pathname;
 }
 
-async function saveWithImage(file, currentUrl, save) {
-  const nextUrl = file ? await api.uploadImage(file) : currentUrl;
+async function saveWithImage(file, type, currentUrl, save) {
+  const nextUrl = file ? await api.uploadImage(file, type) : currentUrl;
   try {
     return await save(nextUrl);
   } catch (failure) {
@@ -239,7 +239,7 @@ function AdminMenuPage() {
         product.id === productBeingEdited.id ? optimisticProduct : product
       ))));
 
-      void saveWithImage(imageFile, payload.imageUrl, imageUrl =>
+      void saveWithImage(imageFile, "product", payload.imageUrl, imageUrl =>
         api.updateProduct(productBeingEdited.id, { ...payload, imageUrl }))
         .then(updatedProduct => {
           setProducts(current => sortProducts(current.map(product => (
@@ -280,7 +280,7 @@ function AdminMenuPage() {
 
     setProducts(current => sortProducts([...current, optimisticProduct]));
 
-    void saveWithImage(imageFile, payload.imageUrl, imageUrl =>
+    void saveWithImage(imageFile, "product", payload.imageUrl, imageUrl =>
       api.createProduct({ ...payload, imageUrl }))
       .then(createdProduct => {
         setProducts(current => sortProducts(current.map(product => (
@@ -315,7 +315,7 @@ function AdminMenuPage() {
 
     void (async () => {
       try {
-        const updated = await saveWithImage(heroFile, payload.heroImageUrl, heroImageUrl =>
+        const updated = await saveWithImage(heroFile, "hero", payload.heroImageUrl, heroImageUrl =>
           api.updateMyEstablishment({ ...payload, heroImageUrl }));
         setEstablishment(updated);
       } catch (err) {

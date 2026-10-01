@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ImagePlus, Loader2, X } from "./icons.js";
-import { IMAGE_ACCEPT, MAX_IMAGE_BYTES, validateImage } from "../api/uploadValidation.js";
+import { IMAGE_ACCEPT, MAX_SOURCE_IMAGE_BYTES } from "../api/uploadValidation.js";
+import { useOptimizedImage } from "./useOptimizedImage.js";
 import { MenuHero } from "./MenuHero.jsx";
 
 const emptyForm = {
@@ -9,12 +10,15 @@ const emptyForm = {
   endereco: "",
   horarioFuncionamento: "",
   telefone: "",
-  emailContato: ""
+  emailContato: "",
+  instagramUrl: "",
+  whatsapp: ""
 };
 
 export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onHeroPreview, theme }) {
   const [form, setForm] = useState(emptyForm);
-  const [heroFile, setHeroFile] = useState(null);
+  const image = useOptimizedImage("hero");
+  const { file: heroFile, processing } = image;
   const [heroRemoved, setHeroRemoved] = useState(false);
   const [heroPreview, setHeroPreview] = useState(establishment?.heroImageUrl || "");
   const [saving, setSaving] = useState(false);
@@ -27,7 +31,9 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
       endereco: establishment?.endereco || "",
       horarioFuncionamento: establishment?.horarioFuncionamento || "",
       telefone: establishment?.telefone || "",
-      emailContato: establishment?.emailContato || ""
+      emailContato: establishment?.emailContato || "",
+      instagramUrl: establishment?.instagramUrl || "",
+      whatsapp: establishment?.whatsapp || ""
     });
     setError("");
   }, [establishment]);
@@ -45,15 +51,10 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
   function selectHero(event) {
     const selected = event.target.files?.[0];
     if (!selected) return;
-    try {
-      validateImage(selected);
-      setHeroFile(selected);
-      setHeroRemoved(false);
-      setError("");
-    } catch (err) {
-      event.target.value = "";
-      setError(err.message);
-    }
+    event.target.value = "";
+    setHeroRemoved(false);
+    setError("");
+    void image.select(selected);
   }
 
   function updateField(event) {
@@ -63,11 +64,11 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (saving || processing || image.error) return;
     setSaving(true);
     setError("");
 
     try {
-      if (heroFile) validateImage(heroFile);
       await onSubmit({
         ...form,
         heroImageUrl: heroRemoved ? "" : establishment?.heroImageUrl || ""
@@ -121,27 +122,40 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
             <input name="emailContato" type="email" value={form.emailContato} onChange={updateField} maxLength={255} />
           </label>
 
+          <label>
+            Instagram
+            <input name="instagramUrl" type="url" value={form.instagramUrl} onChange={updateField} maxLength={2048}
+              pattern="https?://.+" placeholder="https://instagram.com/seuperfil" />
+          </label>
+
+          <label>
+            WhatsApp
+            <input name="whatsapp" type="tel" value={form.whatsapp} onChange={updateField} maxLength={30}
+              placeholder="+55 (34) 99999-9999" aria-describedby="whatsapp-help" />
+          </label>
+          <p id="whatsapp-help" className="contact-help">Informe o número com DDI (código do país).</p>
+
           <div className="hero-preview" data-theme={theme || establishment?.tema || "artesanal"}>
             <MenuHero name={form.nome || "Seu estabelecimento"} imageUrl={heroPreview} isAdmin />
           </div>
           <label className="file-field">
             <ImagePlus size={20} />
-            <span>{heroFile ? heroFile.name : heroPreview ? "Trocar imagem de capa" : "Enviar imagem de capa"}</span>
-            <input key={heroRemoved ? "removed" : "cover"} type="file" accept={IMAGE_ACCEPT} aria-label="Imagem de capa" disabled={saving} onChange={selectHero} />
+            <span>{heroFile ? "Imagem de capa pronta" : heroPreview ? "Trocar imagem de capa" : "Enviar imagem de capa"}</span>
+            <input key={heroRemoved ? "removed" : "cover"} type="file" accept={IMAGE_ACCEPT} aria-label="Imagem de capa" disabled={saving || processing} onChange={selectHero} />
           </label>
-          <p className="hero-upload-help">Use uma imagem horizontal. JPEG, PNG, WEBP ou GIF, até {MAX_IMAGE_BYTES / (1024 * 1024)} MiB.</p>
+          <p className="hero-upload-help">Use uma imagem horizontal. JPEG, PNG ou WebP, até {MAX_SOURCE_IMAGE_BYTES / (1024 * 1024)} MiB. A otimização é automática.</p>
           {(heroPreview || heroFile) && (
-            <button type="button" className="secondary-action" disabled={saving} onClick={() => {
-              setHeroFile(null);
+            <button type="button" className="secondary-action" disabled={saving || processing} onClick={() => {
+              image.clear();
               setHeroRemoved(true);
             }}>Remover imagem de capa</button>
           )}
 
-          {error && <p className="form-error">{error}</p>}
+          {(error || image.error) && <p className="form-error" role="alert">{error || image.error}</p>}
 
-          <button className="primary-action" type="submit" disabled={saving}>
-            {saving ? <Loader2 className="spin" size={18} /> : null}
-            Salvar
+          <button className="primary-action" type="submit" disabled={saving || processing || Boolean(image.error)}>
+            {saving || processing ? <Loader2 className="spin" size={18} /> : null}
+            {processing ? "Processando imagem…" : "Salvar"}
           </button>
         </form>
       </section>

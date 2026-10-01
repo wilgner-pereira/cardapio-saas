@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MenuShell } from './MenuShell';
 
 describe('MenuShell', () => {
@@ -23,6 +23,7 @@ describe('MenuShell', () => {
     expect(screen.getAllByRole('heading', { level: 2 }).map(node => node.textContent)).toEqual(['Entradas', 'Bebidas']);
     fireEvent.click(screen.getByRole('button', { name: 'Bebidas' }));
     expect(document.getElementById('category-bebidas').scrollIntoView).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Bebidas' })).toHaveClass('active');
     expect(screen.queryByRole('button', { name: /Subir seção/ })).not.toBeInTheDocument();
   });
 
@@ -51,6 +52,128 @@ describe('MenuShell', () => {
   beforeEach(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
     document.body.removeAttribute('data-theme');
+    window.history.replaceState({}, '', '/cardapio/test?ref=menu');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('shows configured social links securely and normalizes WhatsApp without adding a country code', () => {
+    render(<MenuShell username="test" establishment={{
+      instagramUrl: 'https://instagram.com/pizzaria', whatsapp: '+1 (202) 555-0123'
+    }} />);
+    const instagram = screen.getByRole('link', { name: 'Instagram' });
+    expect(instagram).toHaveAttribute('href', 'https://instagram.com/pizzaria');
+    expect(instagram).toHaveAttribute('target', '_blank');
+    expect(instagram).toHaveAttribute('rel', 'noopener noreferrer');
+    const whatsapp = screen.getByRole('link', { name: 'WhatsApp' });
+    expect(whatsapp).toHaveAttribute('href', 'https://wa.me/12025550123');
+    expect(whatsapp).toHaveAttribute('target', '_blank');
+    expect(whatsapp).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it.each(['', null, undefined, 'javascript:alert(1)', 'data:text/html,test', '//instagram.com/test',
+    'ftp://instagram.com/test', 'not-a-url', 'https://', 'https:///perfil', 'https://instagram.com/with space',
+    'https://instagram.com@evil.example/test', 'https://instagram.com\\evil.example/test'])('hides absent or unsafe Instagram URLs: %s', instagramUrl => {
+    render(<MenuShell username="test" establishment={{ instagramUrl }} />);
+    expect(screen.queryByRole('link', { name: 'Instagram' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Compartilhar' })).toBeInTheDocument();
+  });
+
+  it.each(['', null, undefined, '+( )-', 'no number'])('hides WhatsApp without digits: %s', whatsapp => {
+    render(<MenuShell username="test" establishment={{ whatsapp }} />);
+    expect(screen.queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Compartilhar' })).toBeInTheDocument();
+  });
+
+  it('places social actions below the hero and categories after the restaurant information before sections', () => {
+    const { container } = render(<MenuShell username="test" products={[
+      { id: 1, nome: 'Batata', categoria: 'Entradas', ativo: true }
+    ]} establishment={{ descricao: 'Pizzas artesanais', telefone: '(34) 3000-1002', endereco: 'Av. Principal, 450' }} />);
+    const hero = screen.getByRole('region', { name: 'Topo do cardápio' });
+    const actions = screen.getByRole('button', { name: 'Compartilhar' }).parentElement;
+    const description = screen.getByText('Pizzas artesanais');
+    const phone = screen.getByText('(34) 3000-1002');
+    const address = screen.getByText('Av. Principal, 450');
+    const tabs = screen.getByRole('navigation');
+    const firstSection = container.querySelector('.menu-section');
+    expect(container.querySelector('.paper').firstElementChild).toBe(actions);
+    for (const [before, after] of [[hero, actions], [actions, description], [description, phone], [phone, address], [address, tabs], [tabs, firstSection]]) {
+      expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it('shares the current public URL with the native share API', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', { share, clipboard: { writeText } });
+    render(<MenuShell username="test" establishment={{ nome: 'Pizzaria Forno Alto' }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' }));
+    expect(share).toHaveBeenCalledWith({ title: 'Pizzaria Forno Alto', text: 'Confira o cardápio de Pizzaria Forno Alto.', url: window.location.href });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Compartilhar' })).toBeEnabled());
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('copies the public link when native sharing is unavailable and resets accessible feedback', async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    render(<MenuShell username="test" />);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' })));
+    expect(writeText).toHaveBeenCalledWith(window.location.href);
+    expect(screen.getByRole('status')).toHaveTextContent('Link copiado');
+    act(() => vi.advanceTimersByTime(3000));
+    expect(screen.getByRole('button', { name: 'Compartilhar' })).toBeInTheDocument();
+  });
+
+  it.each(['native', 'clipboard', 'manual'])('shares only the encoded public menu URL from admin using %s', async method => {
+    window.history.replaceState({}, '', '/painel');
+    const share = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', method === 'native' ? { share } : method === 'clipboard' ? { clipboard: { writeText } } : {});
+    render(<MenuShell username="café centro" mode="admin" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' }));
+    const publicUrl = `${window.location.origin}/cardapio/caf%C3%A9%20centro`;
+    if (method === 'native') {
+      await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: publicUrl })));
+    } else if (method === 'clipboard') {
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(publicUrl));
+    } else {
+      expect(await screen.findByLabelText('Copie o link do cardápio:')).toHaveValue(publicUrl);
+    }
+  });
+
+  it('leaves a cancelled native share without copying or showing an error', async () => {
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', { share: vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError')), clipboard: { writeText } });
+    render(<MenuShell username="test" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Compartilhar' })).toBeEnabled());
+    expect(writeText).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Copie o link do cardápio:')).not.toBeInTheDocument();
+  });
+
+  it('copies the link when native sharing fails for a reason other than cancellation', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { share: vi.fn().mockRejectedValue(new Error('Unavailable')), clipboard: { writeText } });
+    render(<MenuShell username="test" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(window.location.href));
+    expect(screen.getByRole('status')).toHaveTextContent('Link copiado');
+  });
+
+  it.each([undefined, { writeText: vi.fn().mockRejectedValue(new Error('Denied')) }])('provides a selectable link when clipboard is missing or denied', async clipboard => {
+    vi.stubGlobal('navigator', { clipboard });
+    render(<MenuShell username="test" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' }));
+    const input = await screen.findByLabelText('Copie o link do cardápio:');
+    expect(input).toHaveValue(window.location.href);
+    expect(input).toHaveAttribute('readonly');
+    const select = vi.spyOn(input, 'select');
+    fireEvent.focus(input);
+    expect(select).toHaveBeenCalled();
   });
 
   const mockProducts = [

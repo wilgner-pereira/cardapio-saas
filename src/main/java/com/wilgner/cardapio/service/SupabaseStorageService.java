@@ -12,6 +12,14 @@ import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.MemoryCacheImageInputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Set;
 import java.net.URI;
@@ -21,13 +29,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Service
 public class SupabaseStorageService {
-
-    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            MediaType.IMAGE_JPEG_VALUE,
-            MediaType.IMAGE_PNG_VALUE,
-            "image/webp",
-            MediaType.IMAGE_GIF_VALUE
-    );
 
     private final WebClient webClient;
 
@@ -40,8 +41,8 @@ public class SupabaseStorageService {
     @Value("${supabase.bucket}")
     private String bucket;
 
-    @Value("${spring.servlet.multipart.max-file-size:5MB}")
-    private DataSize maxFileSize = DataSize.ofMegabytes(5);
+    @Value("${spring.servlet.multipart.max-file-size:1MB}")
+    private DataSize maxFileSize = DataSize.ofMegabytes(1);
 
     @PostConstruct
     void validateEndpoint() {
@@ -65,32 +66,123 @@ public class SupabaseStorageService {
         this.webClient = webClientBuilder.build();
     }
 
-    public byte[] validateFile(MultipartFile file) throws IOException {
+    public byte[] validateFile(MultipartFile file, ImageUploadProfile profile) throws IOException {
+
+        if (profile == null) throw new IllegalArgumentException("Tipo de imagem inválido");
 
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Arquivo vazio");
         }
 
-        if (file.getContentType() == null
-                || !ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
-            throw new IllegalArgumentException(
-                    "Apenas imagens JPEG, PNG, WEBP ou GIF são permitidas"
-            );
+        if (!"image/webp".equals(file.getContentType())) {
+            throw new IllegalArgumentException("Apenas imagens WebP otimizadas são permitidas nos novos uploads");
         }
 
-        if (file.getSize() > maxFileSize.toBytes()) {
-            throw new MaxUploadSizeExceededException(maxFileSize.toBytes());
+        long sizeLimit = Math.min(maxFileSize.toBytes(), profile.maxBytes());
+        if (file.getSize() > sizeLimit) {
+            throw new MaxUploadSizeExceededException(sizeLimit);
         }
 
-        byte[] bytes = file.getBytes();
-
-        if (!isValidImageMagicBytes(bytes)) {
-            throw new IllegalArgumentException(
-                    "Conteúdo do arquivo não corresponde a uma imagem válida"
-            );
+        // Bound the read independently of multipart metadata before allocating decoder buffers.
+        byte[] bytes;
+        try (var input = file.getInputStream()) {
+            bytes = input.readNBytes((int) sizeLimit + 1);
         }
-
+        if (bytes.length > sizeLimit) throw new MaxUploadSizeExceededException(sizeLimit);
+        inspectWebp(bytes, profile);
+        decodeWebp(bytes, profile);
         return bytes;
+    }
+
+    private void decodeWebp(byte[] bytes, ImageUploadProfile profile) {
+        try (var input = new MemoryCacheImageInputStream(new ByteArrayInputStream(bytes))) {
+            var readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) throw invalidImage();
+            ImageReader reader = readers.next();
+            BufferedImage image = null;
+            try {
+                reader.setInput(input, false, true);
+                if (!"webp".equalsIgnoreCase(reader.getFormatName())) throw invalidImage();
+                profile.validateDimensions(reader.getWidth(0), reader.getHeight(0));
+                // Dimension checks above and in every encoded frame occur BEFORE full decode.
+                image = reader.read(0);
+                if (image == null) throw invalidImage();
+                profile.validateDimensions(image.getWidth(), image.getHeight());
+            } finally {
+                if (image != null) image.flush();
+                reader.dispose();
+            }
+        } catch (IOException | RuntimeException failure) {
+            // Never expose decoder/provider details in client errors or logs.
+            throw invalidImage();
+        }
+    }
+
+    private IllegalArgumentException invalidImage() {
+        return new IllegalArgumentException("Não foi possível validar essa imagem WebP. Escolha outra foto.");
+    }
+
+    private void inspectWebp(byte[] bytes, ImageUploadProfile profile) {
+        if (bytes.length < 20 || !fourCC(bytes, 0).equals("RIFF") || !fourCC(bytes, 8).equals("WEBP")) throw invalidImage();
+        ByteBuffer data = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        if (Integer.toUnsignedLong(data.getInt(4)) + 8 != bytes.length) throw invalidImage();
+        int width = 0, height = 0, frames = 0;
+        boolean extended = false;
+        for (int offset = 12; offset < bytes.length;) {
+            if (offset + 8 > bytes.length) throw invalidImage();
+            String chunk = fourCC(bytes, offset);
+            long size = Integer.toUnsignedLong(data.getInt(offset + 4));
+            int start = offset + 8;
+            long end = start + size + (size & 1);
+            if (end > bytes.length) throw invalidImage();
+            int nextWidth = 0, nextHeight = 0;
+            switch (chunk) {
+                case "VP8X" -> {
+                    if (size != 10 || extended || offset != 12 || (bytes[start] & 2) != 0) throw invalidImage();
+                    extended = true;
+                    nextWidth = uint24(bytes, start + 4) + 1;
+                    nextHeight = uint24(bytes, start + 7) + 1;
+                }
+                case "VP8 " -> {
+                    if (size < 10 || (bytes[start] & 1) != 0 || (bytes[start + 3] & 255) != 0x9d
+                            || bytes[start + 4] != 1 || bytes[start + 5] != 0x2a) throw invalidImage();
+                    int frameTag = uint24(bytes, start);
+                    int partitionSize = frameTag >>> 5;
+                    if (((frameTag >>> 1) & 7) > 3 || (frameTag & 16) == 0
+                            || partitionSize == 0 || partitionSize > size - 10) throw invalidImage();
+                    nextWidth = Short.toUnsignedInt(data.getShort(start + 6)) & 0x3fff;
+                    nextHeight = Short.toUnsignedInt(data.getShort(start + 8)) & 0x3fff;
+                    frames++;
+                }
+                case "VP8L" -> {
+                    if (size < 5 || bytes[start] != 0x2f) throw invalidImage();
+                    int bits = data.getInt(start + 1);
+                    if ((bits >>> 29) != 0) throw invalidImage();
+                    nextWidth = (bits & 0x3fff) + 1;
+                    nextHeight = ((bits >>> 14) & 0x3fff) + 1;
+                    frames++;
+                }
+                case "ANIM", "ANMF" -> throw invalidImage();
+                default -> { /* Bounded metadata/alpha chunks are handled by the decoder. */ }
+            }
+            if (nextWidth != 0 || nextHeight != 0) {
+                profile.validateDimensions(nextWidth, nextHeight);
+                if (width != 0 && (width != nextWidth || height != nextHeight)) throw invalidImage();
+                width = nextWidth;
+                height = nextHeight;
+            }
+            if (frames > 1) throw invalidImage();
+            offset = (int) end;
+        }
+        if (frames != 1 || width == 0 || height == 0) throw invalidImage();
+    }
+
+    private String fourCC(byte[] bytes, int offset) {
+        return new String(bytes, offset, 4, StandardCharsets.US_ASCII);
+    }
+
+    private int uint24(byte[] bytes, int offset) {
+        return (bytes[offset] & 255) | ((bytes[offset + 1] & 255) << 8) | ((bytes[offset + 2] & 255) << 16);
     }
 
     public String publicUrl(String key) {
@@ -203,56 +295,6 @@ public class SupabaseStorageService {
                                     : MediaType.APPLICATION_OCTET_STREAM
                     );
                 });
-    }
-
-    private boolean isValidImageMagicBytes(byte[] bytes) {
-
-        if (bytes == null || bytes.length < 12) {
-            return false;
-        }
-
-        // JPEG: FF D8 FF
-        if ((bytes[0] & 0xFF) == 0xFF
-                && (bytes[1] & 0xFF) == 0xD8
-                && (bytes[2] & 0xFF) == 0xFF) {
-            return true;
-        }
-
-        // PNG: 89 50 4E 47 0D 0A 1A 0A
-        if ((bytes[0] & 0xFF) == 0x89
-                && bytes[1] == 'P'
-                && bytes[2] == 'N'
-                && bytes[3] == 'G'
-                && bytes[4] == 0x0D
-                && bytes[5] == 0x0A
-                && bytes[6] == 0x1A
-                && bytes[7] == 0x0A) {
-            return true;
-        }
-
-        // GIF: GIF87a ou GIF89a
-        if (bytes[0] == 'G'
-                && bytes[1] == 'I'
-                && bytes[2] == 'F'
-                && bytes[3] == '8'
-                && (bytes[4] == '7' || bytes[4] == '9')
-                && bytes[5] == 'a') {
-            return true;
-        }
-
-        // WEBP: RIFF....WEBP
-        if (bytes[0] == 'R'
-                && bytes[1] == 'I'
-                && bytes[2] == 'F'
-                && bytes[3] == 'F'
-                && bytes[8] == 'W'
-                && bytes[9] == 'E'
-                && bytes[10] == 'B'
-                && bytes[11] == 'P') {
-            return true;
-        }
-
-        return false;
     }
 
     public record StoredFile(

@@ -17,14 +17,14 @@ public class TenantStorageService {
         this.quota = quota;
     }
 
-    public String upload(long tenantId, MultipartFile file) throws IOException {
-        byte[] bytes = storage.validateFile(file);
+    public String upload(long tenantId, MultipartFile file, ImageUploadProfile profile) throws IOException {
+        byte[] bytes = storage.validateFile(file, profile);
         String key = UUID.randomUUID().toString(); // No original filename/personal data in paths.
         String url = storage.publicUrl(key);
         quota.reserve(tenantId, key, url, bytes.length);
         boolean remoteCompleted = false;
         try {
-            storage.uploadBytes(key, file.getContentType(), bytes).block();
+            storage.uploadBytes(key, "image/webp", bytes).block();
             remoteCompleted = true;
             quota.mark(key, "STORED");
             return url;

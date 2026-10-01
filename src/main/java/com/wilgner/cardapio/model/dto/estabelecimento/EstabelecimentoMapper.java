@@ -24,6 +24,8 @@ public class EstabelecimentoMapper {
                 estabelecimento.getEmailContato(),
                 estabelecimento.getLogoUrl(),
                 estabelecimento.getHeroImageUrl(),
+                estabelecimento.getInstagramUrl(),
+                estabelecimento.getWhatsapp(),
                 estabelecimento.getTema(),
                 estabelecimento.isImagensRedondas(),
                 estabelecimento.getAtivo(),
@@ -99,6 +101,12 @@ public class EstabelecimentoMapper {
         estabelecimento.setEmailContato(dto.emailContato());
         if (dto.heroImageUrl() != null) {
             estabelecimento.setHeroImageUrl(dto.heroImageUrl().isBlank() ? null : dto.heroImageUrl());
+        }
+        if (dto.instagramUrl() != null) {
+            estabelecimento.setInstagramUrl(dto.instagramUrl().isBlank() ? null : dto.instagramUrl());
+        }
+        if (dto.whatsapp() != null) {
+            estabelecimento.setWhatsapp(dto.whatsapp().isBlank() ? null : dto.whatsapp());
         }
     }
 }

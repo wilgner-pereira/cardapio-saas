@@ -47,7 +47,7 @@ class ImageReplacementIntegrationTest {
     CustomUserDetails owner;
 
     @BeforeEach void setup() throws Exception {
-        when(remote.validateFile(any())).thenReturn(new byte[12]);
+        when(remote.validateFile(any(), any())).thenReturn(new byte[12]);
         when(remote.publicUrl(anyString())).thenAnswer(call->PREFIX+call.getArgument(0));
         when(remote.managedObjectKey(anyString())).thenAnswer(call->{
             String url=call.getArgument(0);return url.startsWith(PREFIX)?url.substring(PREFIX.length()).split("\\?",2)[0]:null;
@@ -185,7 +185,7 @@ class ImageReplacementIntegrationTest {
         verify(remote,never()).deleteFile(anyString());
     }
 
-    String upload(long id) throws Exception {return uploads.upload(id,new MockMultipartFile("file","cover.png","image/png",new byte[12]));}
+    String upload(long id) throws Exception {return uploads.upload(id,new MockMultipartFile("file","optimized.webp","image/webp",new byte[12]),ImageUploadProfile.HERO);}
     String key(String url){return url.substring(PREFIX.length());}
     String state(String url){return jdbc.queryForObject("select status from storage_object where public_url=?",String.class,url);}
     long used(){return jdbc.queryForObject("select coalesce(sum(size_bytes),0) from storage_object where estabelecimento_id=? and status<>'DELETED'",Long.class,tenant.getId());}

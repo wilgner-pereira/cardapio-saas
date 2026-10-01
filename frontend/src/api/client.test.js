@@ -265,6 +265,22 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     expect(JSON.parse(options.body)).toEqual({ url: "https://example.com/new-upload.png" });
   });
 
+  it.each(["product", "hero"])("uploads the optimized WebP and %s profile with cookies and CSRF", async type => {
+    await loginInMemory();
+    fetchMock.mockResolvedValueOnce(new Response("https://example.com/uuid", { status: 200 }));
+    const optimized = new File(["webp"], "optimized.webp", { type: "image/webp" });
+    await api.uploadImage(optimized, type);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toBe("/painel/storage/upload");
+    expect(options.method).toBe("POST");
+    expect(options.credentials).toBe("include");
+    expect(options.headers["X-XSRF-TOKEN"]).toBe("test-csrf");
+    expect(options.headers).not.toHaveProperty("Content-Type");
+    expect(options.body.get("file")).toBe(optimized);
+    expect(options.body.get("file").name).toBe("optimized.webp");
+    expect(options.body.get("type")).toBe(type);
+  });
+
   it.each([
     ["getPlatformEstablishments", [], "/plataforma/estabelecimentos", "GET"],
     ["getPlatformEstablishment", [12], "/plataforma/estabelecimentos/12", "GET"],

@@ -14,8 +14,8 @@ public class MultipartConfig {
     private final DataSize maxRequestSize;
 
     public MultipartConfig(
-            @Value("${spring.servlet.multipart.max-file-size:5MB}") DataSize maxFileSize,
-            @Value("${spring.servlet.multipart.max-request-size:5MB}") DataSize maxRequestSize) {
+            @Value("${spring.servlet.multipart.max-file-size:1MB}") DataSize maxFileSize,
+            @Value("${spring.servlet.multipart.max-request-size:2MB}") DataSize maxRequestSize) {
         this.maxFileSize = maxFileSize;
         this.maxRequestSize = maxRequestSize;
     }

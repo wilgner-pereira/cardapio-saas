@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ImagePlus, Loader2, X } from "./icons.js";
-import { IMAGE_ACCEPT, validateImage } from "../api/uploadValidation.js";
+import { IMAGE_ACCEPT } from "../api/uploadValidation.js";
+import { useOptimizedImage } from "./useOptimizedImage.js";
 
 const emptyForm = {
   nome: "",
@@ -11,7 +12,9 @@ const emptyForm = {
 
 export function ProductEditorModal({ product, onClose, onSubmit }) {
   const [form, setForm] = useState(emptyForm);
-  const [file, setFile] = useState(null);
+  const image = useOptimizedImage("product");
+  const { file, processing } = image;
+  const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,9 +29,16 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
     } else {
       setForm(emptyForm);
     }
-    setFile(null);
+    image.clear();
     setError("");
   }, [product]);
+
+  useEffect(() => {
+    if (!file) { setPreview(""); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -48,11 +58,11 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (saving || processing || image.error) return;
     setSaving(true);
     setError("");
 
     try {
-      if (file) validateImage(file);
       await onSubmit({
         ...form,
         preco: Number(String(form.preco).replace(",", ".")),
@@ -105,15 +115,22 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
 
           <label className="file-field">
             <ImagePlus size={20} />
-            <span>{file ? file.name : product?.imageUrl ? "Trocar imagem" : "Enviar imagem"}</span>
-            <input type="file" accept={IMAGE_ACCEPT} onChange={event => setFile(event.target.files?.[0] || null)} />
+            <span>{file ? "Imagem pronta" : product?.imageUrl ? "Trocar imagem" : "Enviar imagem"}</span>
+            <input type="file" accept={IMAGE_ACCEPT} aria-label="Imagem do produto" disabled={saving || processing} onChange={event => {
+              const selected = event.target.files?.[0];
+              event.target.value = "";
+              setError("");
+              void image.select(selected);
+            }} />
           </label>
 
-          {error && <p className="form-error" role="alert">{error}</p>}
+          {preview && <div className="product-image-preview product-image-wrap"><img src={preview} alt="Prévia da imagem do produto" /></div>}
 
-          <button className="primary-action" type="submit" disabled={saving}>
-            {saving ? <Loader2 className="spin" size={18} /> : null}
-            Salvar
+          {(error || image.error) && <p className="form-error" role="alert">{error || image.error}</p>}
+
+          <button className="primary-action" type="submit" disabled={saving || processing || Boolean(image.error)}>
+            {saving || processing ? <Loader2 className="spin" size={18} /> : null}
+            {processing ? "Processando imagem…" : "Salvar"}
           </button>
         </form>
       </section>

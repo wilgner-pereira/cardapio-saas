@@ -7,12 +7,15 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  Instagram,
   MapPin,
+  MessageCircle,
   Palette,
   Pencil,
   Phone,
   Plus,
   RefreshCw,
+  Share2,
   Trash2,
   X
 } from "./icons.js";
@@ -38,6 +41,16 @@ function formatCurrency(value) {
     style: "currency",
     currency: "BRL"
   });
+}
+
+function safeInstagramUrl(value) {
+  if (typeof value !== "string" || !/^https?:\/\/[^/\\?#@\s]+(?:[/?#]\S*)?$/i.test(value)) return "";
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.href : "";
+  } catch {
+    return "";
+  }
 }
 
 function groupByCategory(products, includeUnavailable) {
@@ -84,6 +97,9 @@ export function MenuShell({
   themeButtonRef
 }) {
   const [activeCategory, setActiveCategory] = useState("");
+  const [shareFeedback, setShareFeedback] = useState("");
+  const [manualShare, setManualShare] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const categoryTabsRef = useRef(null);
   const isAdmin = mode === "admin";
   const storeName = establishment?.nome || formatStoreName(username);
@@ -92,6 +108,17 @@ export function MenuShell({
   const categories = Array.from(grouped.keys());
   const selectedCategory = activeCategory && grouped.has(activeCategory) ? activeCategory : categories[0];
   const effectiveTheme = theme || establishment?.tema || "artesanal";
+  const instagramUrl = safeInstagramUrl(establishment?.instagramUrl);
+  const whatsappDigits = typeof establishment?.whatsapp === "string" ? establishment.whatsapp.replace(/\D/g, "") : "";
+  const publicMenuUrl = isAdmin
+    ? `${window.location.origin}/cardapio/${encodeURIComponent(username)}`
+    : window.location.href;
+
+  useEffect(() => {
+    if (!shareFeedback) return;
+    const timer = window.setTimeout(() => setShareFeedback(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [shareFeedback]);
 
   useEffect(() => {
     const tabs = categoryTabsRef.current;
@@ -170,6 +197,34 @@ export function MenuShell({
     });
   }
 
+  async function shareMenu() {
+    setSharing(true);
+    setShareFeedback("");
+    setManualShare(false);
+    try {
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({ title: storeName, text: `Confira o cardápio de ${storeName}.`, url: publicMenuUrl });
+          return;
+        } catch (err) {
+          if (err?.name === "AbortError") return;
+        }
+      }
+      if (typeof navigator.clipboard?.writeText === "function") {
+        try {
+          await navigator.clipboard.writeText(publicMenuUrl);
+          setShareFeedback("Link copiado");
+          return;
+        } catch {
+          // A denied clipboard permission still allows manual copying.
+        }
+      }
+      setManualShare(true);
+    } finally {
+      setSharing(false);
+    }
+  }
+
   return (
     <main className="menu-page" data-theme={effectiveTheme} data-image-shape={(roundImages ?? establishment?.imagensRedondas) ? "round" : "square"}>
       <MenuHero name={storeName} imageUrl={establishment?.heroImageUrl} isAdmin={isAdmin}>
@@ -201,6 +256,49 @@ export function MenuShell({
       </MenuHero>
 
       <section className="paper">
+        <div className="social-actions">
+          {instagramUrl && (
+            <a className="social-action social-instagram" href={instagramUrl} target="_blank" rel="noopener noreferrer">
+              <Instagram size={19} aria-hidden="true" />
+              <span>Instagram</span>
+            </a>
+          )}
+          {whatsappDigits && (
+            <a className="social-action social-whatsapp" href={`https://wa.me/${whatsappDigits}`} target="_blank" rel="noopener noreferrer">
+              <MessageCircle size={19} aria-hidden="true" />
+              <span>WhatsApp</span>
+            </a>
+          )}
+          <button className="social-action social-share" type="button" onClick={shareMenu} disabled={sharing}>
+            <Share2 size={19} aria-hidden="true" />
+            <span role="status" aria-live="polite">{shareFeedback || "Compartilhar"}</span>
+          </button>
+        </div>
+        {manualShare && (
+          <label className="share-fallback">
+            Copie o link do cardápio:
+            <input type="url" readOnly value={publicMenuUrl} onFocus={event => event.target.select()} />
+          </label>
+        )}
+
+        <div className="intro-row">
+          <div className="intro-copy">
+            <p>
+              {description || `Cardapio digital de ${storeName}.`}
+            </p>
+            {(establishment?.telefone || establishment?.endereco) && (
+              <div className="store-meta">
+                {establishment?.telefone && (
+                  <span><Phone size={15} /> {establishment.telefone}</span>
+                )}
+                {establishment?.endereco && (
+                  <span><MapPin size={15} /> {establishment.endereco}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         <nav ref={categoryTabsRef} className="category-tabs" aria-label="Categorias do cardapio">
           {categories.map(category => {
             const active = category === selectedCategory;
@@ -222,24 +320,6 @@ export function MenuShell({
             </button>
           )}
         </nav>
-
-        <div className="intro-row">
-          <div className="intro-copy">
-            <p>
-              {description || `Cardapio digital de ${storeName}.`}
-            </p>
-            {(establishment?.telefone || establishment?.endereco) && (
-              <div className="store-meta">
-                {establishment?.telefone && (
-                  <span><Phone size={15} /> {establishment.telefone}</span>
-                )}
-                {establishment?.endereco && (
-                  <span><MapPin size={15} /> {establishment.endereco}</span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
 
         {loading && <StatePanel title="Carregando cardapio" />}
         {error && <StatePanel title={error} tone="danger" />}

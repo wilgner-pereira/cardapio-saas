@@ -10,6 +10,44 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.*;
 
 class StorageRedirectTest {
+    @Test void optimizedUploadAndPublicDownloadPreserveWebpAndLegacyGifContentTypes() throws Exception {
+        byte[] image = SupabaseStorageServiceTest.fixture("product.webp");
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            if (exchange.getRequestMethod().equals("POST")) {
+                assertThat(exchange.getRequestHeaders().getFirst("Content-Type")).isEqualTo("image/webp");
+                assertThat(exchange.getRequestBody().readAllBytes()).isEqualTo(image);
+                exchange.sendResponseHeaders(200, -1);
+            } else {
+                boolean gif = exchange.getRequestURI().getPath().endsWith("old-gif");
+                byte[] body = gif ? java.util.Base64.getDecoder().decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7") : image;
+                exchange.getResponseHeaders().add("Content-Type", gif ? "image/gif" : "image/webp");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            var service = new SupabaseStorageService(new WebClientConfig().webClientBuilder());
+            ReflectionTestUtils.setField(service, "projectUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            ReflectionTestUtils.setField(service, "bucket", "test");
+            ReflectionTestUtils.setField(service, "apiKey", "test-only-key");
+            var quota = org.mockito.Mockito.mock(StorageQuotaService.class);
+            new TenantStorageService(service, quota).upload(1L, SupabaseStorageServiceTest.file(image), ImageUploadProfile.PRODUCT);
+            org.mockito.Mockito.verify(quota).reserve(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.anyString(),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq((long) image.length));
+            var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+                    new com.wilgner.cardapio.controller.PublicStorageController(service)).build();
+            for (String name : new String[]{"new-webp", "old-gif"}) {
+                var pending = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/public/storage/" + name))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
+                mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pending))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType(name.equals("old-gif") ? "image/gif" : "image/webp"));
+            }
+        } finally { server.stop(0); }
+    }
     @Test void missingDeletionIsIdempotentButPermissionFailureRemainsAnError() throws Exception {
         var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/",exchange->{

@@ -14,6 +14,8 @@ public record EstabelecimentoResponseDTO(
         String emailContato,
         String logoUrl,
         String heroImageUrl,
+        String instagramUrl,
+        String whatsapp,
         String tema,
         boolean imagensRedondas,
         Boolean ativo,

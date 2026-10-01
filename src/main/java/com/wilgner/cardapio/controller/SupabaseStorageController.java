@@ -1,6 +1,7 @@
 package com.wilgner.cardapio.controller;
 
 import com.wilgner.cardapio.service.TenantStorageService;
+import com.wilgner.cardapio.service.ImageUploadProfile;
 import com.wilgner.cardapio.service.SecurityUtils;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.MediaType;
@@ -28,10 +29,11 @@ public class SupabaseStorageController {
             value = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) throws IOException {
+    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file,
+                                         @RequestParam(value = "type", required = false) String type) throws IOException {
         var user = SecurityUtils.getUsuarioAutenticado();
         if (user == null) throw new BadCredentialsException("Credenciais inválidas");
-        return ResponseEntity.ok(storageService.upload(user.getEstabelecimento().getId(), file));
+        return ResponseEntity.ok(storageService.upload(user.getEstabelecimento().getId(), file, ImageUploadProfile.fromRequest(type)));
     }
 
     @DeleteMapping("/unused-image")
