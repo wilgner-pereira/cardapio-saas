@@ -239,32 +239,38 @@ describe('MenuShell', () => {
       }]));
     }
 
-    it('observes the category bar and stays hidden before it is reached, regardless of scroll pixels', () => {
+    it('observes the original category position and stays hidden before it is reached, regardless of scroll pixels', () => {
       const { container } = render(<MenuShell username="test" products={mockProducts} />);
       const button = container.querySelector('.scroll-to-top-button');
-      expect(observer.observe).toHaveBeenCalledWith(screen.getByRole('navigation'));
+      const marker = container.querySelector('.category-position-marker');
+      expect(observer.observe).toHaveBeenCalledWith(marker);
+      expect(marker).toHaveAttribute('aria-hidden', 'true');
+      expect(marker.nextElementSibling).toBe(screen.getByRole('navigation'));
       expect(screen.queryByRole('button', { name: 'Voltar ao topo' })).not.toBeInTheDocument();
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute('tabindex', '-1');
       vi.stubGlobal('scrollY', 10000);
-      reportPosition(false, 1500, 1570);
+      reportPosition(false, 1500, 1500);
       expect(button).not.toHaveClass('is-visible');
       expect(button).toHaveAttribute('aria-hidden', 'true');
     });
 
-    it('appears only after the entire bar passes above the viewport and hides when any part returns', () => {
+    it('appears when the original category position passes the viewport even while the bar stays visible, and hides on return', () => {
       const { container } = render(<MenuShell username="test" products={mockProducts} />);
       const button = container.querySelector('.scroll-to-top-button');
-      reportPosition(true, 0, 70); // The sticky bar remains visible.
+      const tabs = screen.getByRole('navigation');
+      vi.spyOn(tabs, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 70 });
+      reportPosition(true, 300, 300);
       expect(button).not.toHaveClass('is-visible');
-      reportPosition(true, -60, 10);
+      reportPosition(true, 0, 0);
       expect(button).not.toHaveClass('is-visible');
-      reportPosition(false, -71, -1);
+      reportPosition(false, -1, -1);
+      expect(tabs.getBoundingClientRect()).toEqual({ top: 0, bottom: 70 });
       expect(screen.getByRole('button', { name: 'Voltar ao topo' })).toBe(button);
       expect(button).toHaveClass('is-visible');
       expect(button).toBeEnabled();
       expect(button).toHaveAttribute('tabindex', '0');
-      reportPosition(true, -69, 1);
+      reportPosition(true, 1, 1);
       expect(button).not.toHaveClass('is-visible');
       expect(button).toHaveAttribute('aria-hidden', 'true');
       expect(button).toBeDisabled();
@@ -275,7 +281,7 @@ describe('MenuShell', () => {
     it('scrolls smoothly to the top by click, Enter and Space', async () => {
       const user = userEvent.setup();
       render(<MenuShell username="test" products={mockProducts} />);
-      reportPosition(false, -71, -1);
+      reportPosition(false, -1, -1);
       const button = screen.getByRole('button', { name: 'Voltar ao topo' });
       await user.click(button);
       expect(button).not.toHaveFocus();
@@ -309,11 +315,11 @@ describe('MenuShell', () => {
     });
 
     it('supports menus that load asynchronously and disconnects when entering admin mode', () => {
-      const { rerender } = render(<MenuShell username="test" loading />);
+      const { container, rerender } = render(<MenuShell username="test" loading />);
       expect(IntersectionObserver).not.toHaveBeenCalled();
       rerender(<MenuShell username="test" products={mockProducts} />);
-      expect(observer.observe).toHaveBeenCalledWith(screen.getByRole('navigation'));
-      reportPosition(false, -71, -1);
+      expect(observer.observe).toHaveBeenCalledWith(container.querySelector('.category-position-marker'));
+      reportPosition(false, -1, -1);
       expect(screen.getByRole('button', { name: 'Voltar ao topo' })).toBeEnabled();
       rerender(<MenuShell username="test" products={mockProducts} mode="admin" />);
       expect(observer.disconnect).toHaveBeenCalledTimes(1);

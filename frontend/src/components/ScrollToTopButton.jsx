@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
 import { ArrowUp } from "./icons.js";
 
-export function ScrollToTopButton({ categoryTabsRef }) {
+export function ScrollToTopButton({ categoryPositionRef }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const tabs = categoryTabsRef.current;
-    if (!tabs || typeof IntersectionObserver !== "function") return;
+    const marker = categoryPositionRef.current;
+    if (!marker || typeof IntersectionObserver !== "function") return;
 
     const observer = new IntersectionObserver(([entry]) => {
-      // A menu below the viewport has not been passed yet (for example, with a tall hero).
+      // Observe the original position: the category bar itself remains sticky.
+      // A marker below the viewport has not been passed yet (for example, with a tall hero).
       setVisible(!entry.isIntersecting && entry.boundingClientRect.bottom <= (entry.rootBounds?.top ?? 0));
     }, { threshold: 0 });
 
-    observer.observe(tabs);
+    observer.observe(marker);
     return () => observer.disconnect();
-  }, [categoryTabsRef]);
+  }, [categoryPositionRef]);
 
   return (
     <button

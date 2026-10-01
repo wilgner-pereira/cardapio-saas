@@ -102,6 +102,7 @@ export function MenuShell({
   const [manualShare, setManualShare] = useState(false);
   const [sharing, setSharing] = useState(false);
   const categoryTabsRef = useRef(null);
+  const categoryPositionRef = useRef(null);
   const isAdmin = mode === "admin";
   const storeName = establishment?.nome || formatStoreName(username);
   const description = establishment?.descricao || "";
@@ -300,6 +301,7 @@ export function MenuShell({
           </div>
         </div>
 
+        {!isAdmin && <div ref={categoryPositionRef} className="category-position-marker" aria-hidden="true" />}
         <nav ref={categoryTabsRef} className="category-tabs" aria-label="Categorias do cardapio">
           {categories.map(category => {
             const active = category === selectedCategory;
@@ -375,7 +377,7 @@ export function MenuShell({
         </div>
       </section>
       {!isAdmin && !loading && !error && categories.length > 0 && (
-        <ScrollToTopButton categoryTabsRef={categoryTabsRef} />
+        <ScrollToTopButton categoryPositionRef={categoryPositionRef} />
       )}
     </main>
   );

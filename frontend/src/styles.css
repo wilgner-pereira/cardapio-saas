@@ -590,6 +590,11 @@ button {
 
 .store-meta svg { flex-shrink: 0; }
 
+.category-position-marker {
+  height: 0;
+  pointer-events: none;
+}
+
 .category-tabs {
   position: sticky;
   z-index: 8;
