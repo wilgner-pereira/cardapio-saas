@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.jsx";
 import { AuthProvider } from "./auth/AuthContext.jsx";
@@ -44,6 +45,75 @@ function renderApp(path, { strict = false } = {}) {
   const tree = <AuthProvider><App /></AuthProvider>;
   return render(strict ? <React.StrictMode>{tree}</React.StrictMode> : tree);
 }
+
+describe("login interface", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getStoredUser.mockReturnValue(null);
+  });
+
+  it("shows Lune Systems and preserves labeled fields and back navigation", () => {
+    renderApp("/login");
+    expect(screen.getByText("Lune Systems")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Seu cardápio e sua gestão em um só lugar." })).toBeInTheDocument();
+    expect(screen.queryByText("Cardápio SaaS")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Usuário")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("Usuário")).toHaveAttribute("minlength", "3");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("autocomplete", "current-password");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("minlength", "8");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(window.location.pathname).toBe("/");
+    expect(screen.getByRole("button", { name: "Entrar no painel" })).toBeInTheDocument();
+    expect(api.login).not.toHaveBeenCalled();
+    expect(api.validate).not.toHaveBeenCalled();
+  });
+
+  it("shows and hides the existing password by keyboard without submitting", async () => {
+    const user = userEvent.setup();
+    renderApp("/login");
+    const password = screen.getByLabelText("Senha");
+    await user.type(password, "test-password");
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Mostrar senha" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(password).toHaveAttribute("type", "text");
+    expect(password).toHaveValue("test-password");
+    expect(screen.getByRole("button", { name: "Ocultar senha" })).toHaveAttribute("aria-pressed", "true");
+    await user.keyboard(" ");
+    expect(password).toHaveAttribute("type", "password");
+    expect(password).toHaveValue("test-password");
+    expect(screen.getByRole("button", { name: "Mostrar senha" })).toHaveAttribute("aria-pressed", "false");
+    expect(api.login).not.toHaveBeenCalled();
+  });
+
+  it("preserves loading, authentication errors and retry with the entered credentials", async () => {
+    let rejectLogin;
+    api.login.mockImplementationOnce(() => new Promise((resolve, reject) => { rejectLogin = reject; }));
+    renderApp("/login");
+    const username = screen.getByLabelText("Usuário");
+    const password = screen.getByLabelText("Senha");
+    fireEvent.change(username, { target: { value: "owner" } });
+    fireEvent.change(password, { target: { value: "test-password" } });
+    const submit = screen.getByRole("button", { name: "Entrar" });
+    fireEvent.click(submit);
+    expect(submit).toBeDisabled();
+    expect(screen.getByRole("form", { name: "Entrar" })).toHaveAttribute("aria-busy", "true");
+    expect(api.login).toHaveBeenCalledWith("owner", "test-password");
+    rejectLogin(new Error("Usuário ou senha inválidos"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Usuário ou senha inválidos");
+    expect(submit).toBeEnabled();
+    expect(screen.getByRole("form", { name: "Entrar" })).toHaveAttribute("aria-busy", "false");
+    expect(password).toHaveAccessibleDescription("Usuário ou senha inválidos");
+    expect(username).toHaveValue("owner");
+    expect(password).toHaveValue("test-password");
+    api.login.mockRejectedValueOnce(new Error("Tente novamente mais tarde"));
+    fireEvent.click(submit);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tente novamente mais tarde");
+    expect(api.login).toHaveBeenCalledTimes(2);
+    expect(window.location.pathname).toBe("/login");
+  });
+});
 
 describe("route-scoped session validation", () => {
   it("previews, cancels, retries and persists product image shape", async () => {
@@ -239,7 +309,7 @@ describe("administrative routing by role", () => {
   ])("routes %s after login to %s", async (role, path, content) => {
     api.login.mockResolvedValue({ ...session, roles: [role] });
     renderApp("/login");
-    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Usuário"), { target: { value: "owner" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "test-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
     await screen.findByText(content, { selector: role === "ROLE_PLATFORM_ADMIN" ? "h1" : undefined });
@@ -295,7 +365,7 @@ describe("administrative routing by role", () => {
   it("uses the platform home when both roles are explicitly present", async () => {
     api.login.mockResolvedValue({ ...session, roles: ["ROLE_TENANT_ADMIN", "ROLE_PLATFORM_ADMIN"] });
     renderApp("/login");
-    fireEvent.change(screen.getByLabelText("Usuario"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Usuário"), { target: { value: "owner" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "test-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
     await screen.findByRole("heading", { name: "Visão geral" });

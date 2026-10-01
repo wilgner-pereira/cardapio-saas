@@ -1,5 +1,6 @@
 export { default as ArrowDown } from "lucide-react/dist/esm/icons/arrow-down.js";
 export { default as ArrowUp } from "lucide-react/dist/esm/icons/arrow-up.js";
+export { default as ArrowRight } from "lucide-react/dist/esm/icons/arrow-right.js";
 export { default as Beef } from "lucide-react/dist/esm/icons/beef.js";
 export { default as Check } from "lucide-react/dist/esm/icons/check.js";
 export { default as ChevronDown } from "lucide-react/dist/esm/icons/chevron-down.js";
@@ -23,6 +24,7 @@ export { default as Share2 } from "lucide-react/dist/esm/icons/share-2.js";
 export { default as Save } from "lucide-react/dist/esm/icons/save.js";
 export { default as Trash2 } from "lucide-react/dist/esm/icons/trash-2.js";
 export { default as Utensils } from "lucide-react/dist/esm/icons/utensils.js";
+export { default as UserRound } from "lucide-react/dist/esm/icons/user-round.js";
 export { default as X } from "lucide-react/dist/esm/icons/x.js";
 export { default as ArrowLeft } from "lucide-react/dist/esm/icons/arrow-left.js";
 export { default as LayoutDashboard } from "lucide-react/dist/esm/icons/layout-dashboard.js";

@@ -4,7 +4,7 @@ import { useAuth } from "./auth/AuthContext.jsx";
 import { ProtectedArea } from "./auth/ProtectedArea.jsx";
 import { getAdminHome, PLATFORM_ADMIN, TENANT_ADMIN } from "./auth/roles.js";
 import { PlatformPage } from "./platform/PlatformPage.jsx";
-import { Loader2, Lock, Plus } from "./components/icons.js";
+import { ArrowRight, Eye, EyeOff, Loader2, Lock, Plus, UserRound } from "./components/icons.js";
 import { EstablishmentEditorModal } from "./components/EstablishmentEditorModal.jsx";
 import { MenuShell } from "./components/MenuShell.jsx";
 import { ProductEditorModal } from "./components/ProductEditorModal.jsx";
@@ -576,6 +576,7 @@ function LoginPage({ onSuccess }) {
   const auth = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -599,46 +600,85 @@ function LoginPage({ onSuccess }) {
     <main className="login-page">
       <section className="login-visual">
         <button className="round-icon" type="button" aria-label="Voltar" onClick={() => navigate("/")}>
-          <Lock size={22} />
+          <Lock size={22} aria-hidden="true" />
         </button>
-        <div>
-          <span className="brand-kicker">Cardápio SaaS</span>
-          <h1>Seu cardápio e sua gestão em um só lugar.</h1>
+        <div className="login-copy">
+          <div className="login-brand">
+            <span className="login-brand-name">Lune Systems</span>
+            <p>Tecnologia para simplificar e acelerar o seu negócio.</p>
+          </div>
+          <h1>
+            <span>Seu cardápio e</span>{" "}
+            <span>sua gestão em</span>{" "}
+            <span>um só lugar.</span>
+          </h1>
+          <p className="login-intro">
+            <span>Mais que um cardápio digital.</span>
+            <span>Uma gestão completa para o</span>
+            <span>seu negócio crescer.</span>
+          </p>
+          <p className="login-services">Sistemas comerciais, CRM, cardápios digitais, automações e integrações com WhatsApp.</p>
         </div>
       </section>
 
       <section className="login-panel">
-        <form className="login-form" onSubmit={handleSubmit}>
-          <h2>Entrar</h2>
+        <form className="login-form" onSubmit={handleSubmit} aria-busy={loading} aria-labelledby="login-title">
+          <div className="login-form-header">
+            <h2 id="login-title">Entrar</h2>
+            <p>Acesse sua conta para gerenciar seu cardápio e muito mais.</p>
+          </div>
 
-          <label>
-            Usuario
-            <input
-              value={username}
-              onChange={event => setUsername(event.target.value)}
-              autoComplete="username"
-              required
-              minLength={3}
-            />
-          </label>
+          <div className="login-field">
+            <label htmlFor="login-username">Usuário</label>
+            <div className="login-input-wrap">
+              <UserRound className="login-input-icon" size={20} aria-hidden="true" />
+              <input
+                id="login-username"
+                value={username}
+                onChange={event => setUsername(event.target.value)}
+                placeholder="Digite seu usuário"
+                autoComplete="username"
+                aria-describedby={error ? "login-error" : undefined}
+                required
+                minLength={3}
+              />
+            </div>
+          </div>
 
-          <label>
-            Senha
-            <input
-              type="password"
-              value={password}
-              onChange={event => setPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-              minLength={8}
-            />
-          </label>
+          <div className="login-field">
+            <label htmlFor="login-password">Senha</label>
+            <div className="login-input-wrap">
+              <Lock className="login-input-icon" size={20} aria-hidden="true" />
+              <input
+                id="login-password"
+                type={passwordVisible ? "text" : "password"}
+                value={password}
+                onChange={event => setPassword(event.target.value)}
+                placeholder="Digite sua senha"
+                autoComplete="current-password"
+                aria-describedby={error ? "login-error" : undefined}
+                required
+                minLength={8}
+              />
+              <button
+                className="login-password-toggle"
+                type="button"
+                aria-label={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
+                aria-pressed={passwordVisible}
+                aria-controls="login-password"
+                onClick={() => setPasswordVisible(visible => !visible)}
+              >
+                {passwordVisible ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
+              </button>
+            </div>
+          </div>
 
-          {error && <p className="form-error" role="alert">{error}</p>}
+          {error && <p id="login-error" className="form-error" role="alert">{error}</p>}
 
           <button className="primary-action" type="submit" disabled={loading}>
-            {loading ? <Loader2 className="spin" size={18} /> : null}
+            {loading ? <Loader2 className="spin" size={18} aria-hidden="true" /> : null}
             Entrar
+            {!loading && <ArrowRight size={18} aria-hidden="true" />}
           </button>
         </form>
       </section>
