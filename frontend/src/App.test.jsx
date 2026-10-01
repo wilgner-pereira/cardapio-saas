@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.jsx";
@@ -112,6 +112,102 @@ describe("login interface", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Tente novamente mais tarde");
     expect(api.login).toHaveBeenCalledTimes(2);
     expect(window.location.pathname).toBe("/login");
+  });
+});
+
+describe("not found pages", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getStoredUser.mockReturnValue(null);
+  });
+
+  it("shows only the cardápio not found page when establishment info returns 404", async () => {
+    let rejectInfo;
+    api.getPublicMenu.mockRejectedValue(Object.assign(new Error("Erro temporário"), { status: 500 }));
+    api.getPublicEstablishment.mockImplementation(() => new Promise((_, reject) => { rejectInfo = reject; }));
+
+    const { container } = renderApp("/cardapio/pizz");
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando cardápio");
+    expect(container.querySelector(".menu-page")).toBeNull();
+    await act(async () => {
+      rejectInfo(Object.assign(new Error("Estabelecimento não encontrado"), { status: 404 }));
+    });
+
+    expect(screen.getByRole("heading", { name: "Cardápio não encontrado" })).toBeInTheDocument();
+    expect(screen.getByText("Desculpe, não encontramos um cardápio para este endereço.")).toBeInTheDocument();
+    expect(screen.getByText("Confira o link e tente novamente.")).toBeInTheDocument();
+    expect(container.querySelector(".menu-page")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Compartilhar" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Estabelecimento não encontrado")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/cardapio/pizz");
+    fireEvent.click(screen.getByRole("button", { name: "Voltar ao início" }));
+    expect(window.location.pathname).toBe("/");
+    expect(screen.getByRole("button", { name: "Entrar no painel" })).toBeInTheDocument();
+  });
+
+  it("does not show the previous establishment while another slug is loading", async () => {
+    let rejectMissingInfo;
+    api.getPublicMenu.mockResolvedValue([{ id: 1, nome: "Pizza", categoria: "Pizzas", ativo: true }]);
+    api.getPublicEstablishment.mockResolvedValueOnce({ nome: "Pizzaria" })
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectMissingInfo = reject; }));
+
+    const { container } = renderApp("/cardapio/pizzaria");
+    expect(await screen.findByText("Pizza")).toBeInTheDocument();
+    act(() => {
+      window.history.pushState(null, "", "/cardapio/pizz");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando cardápio");
+    expect(container.querySelector(".menu-page")).toBeNull();
+    expect(screen.queryByText("Pizzaria")).not.toBeInTheDocument();
+
+    await act(async () => {
+      rejectMissingInfo(Object.assign(new Error("Estabelecimento não encontrado"), { status: 404 }));
+    });
+    expect(screen.getByRole("heading", { name: "Cardápio não encontrado" })).toBeInTheDocument();
+    expect(container.querySelector(".menu-page")).toBeNull();
+  });
+
+  it("shows the info 404 without waiting for a stalled product request", async () => {
+    api.getPublicMenu.mockImplementation(() => new Promise(() => {}));
+    api.getPublicEstablishment.mockRejectedValue(Object.assign(new Error("Estabelecimento não encontrado"), { status: 404 }));
+
+    renderApp("/cardapio/pizz");
+    expect(await screen.findByRole("heading", { name: "Cardápio não encontrado" })).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("keeps the existing unavailable menu treatment for an info request returning 500", async () => {
+    api.getPublicMenu.mockResolvedValue([]);
+    api.getPublicEstablishment.mockRejectedValue(Object.assign(new Error("Serviço indisponível"), { status: 500 }));
+
+    const { container } = renderApp("/cardapio/pizz");
+    expect(await screen.findByText("Serviço indisponível")).toBeInTheDocument();
+    expect(container.querySelector(".menu-page")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Cardápio não encontrado" })).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/cardapio/pizz");
+  });
+
+  it.each(["/banana", "/abc/def", "/cardapio", "/login-extra", "/cardapio/%"])("shows the global not found page at %s", path => {
+    const { container } = renderApp(path);
+    expect(screen.getByRole("heading", { name: "Página não encontrada" })).toBeInTheDocument();
+    expect(screen.getByText("Desculpe, não encontramos esta página.")).toBeInTheDocument();
+    expect(screen.getByText("Confira o endereço ou volte para o início.")).toBeInTheDocument();
+    expect(container.querySelector(".menu-page")).toBeNull();
+    expect(window.location.pathname).toBe(path);
+    expect(api.getPublicMenu).not.toHaveBeenCalled();
+    expect(api.getPublicEstablishment).not.toHaveBeenCalled();
+    expect(api.validate).not.toHaveBeenCalled();
+  });
+
+  it("returns from the global not found page through SPA navigation by keyboard", async () => {
+    const user = userEvent.setup();
+    renderApp("/banana");
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Voltar ao início" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(window.location.pathname).toBe("/");
+    expect(screen.getByRole("button", { name: "Entrar no painel" })).toBeInTheDocument();
   });
 });
 

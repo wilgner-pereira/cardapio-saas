@@ -1087,6 +1087,59 @@ textarea::placeholder {
   margin-top: 24px;
 }
 
+.not-found-page {
+  --theme-heading: #0B0B0B;
+  --theme-text-muted: #5F6368;
+  --theme-primary-text: #FFFFFF;
+  --theme-button-gradient: #80551A;
+  --theme-button-hover-gradient: #694412;
+  --theme-button-active-gradient: #54370F;
+  --theme-focus-ring: #80551A;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(24px, 5vw, 48px);
+  background: #FFFAF1;
+}
+
+.not-found-content {
+  width: min(100%, 640px);
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.not-found-icon {
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  color: #80551A;
+  background: #F6E4C5;
+}
+
+.not-found-content h1 {
+  margin: 0;
+  color: var(--theme-heading);
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.not-found-copy {
+  display: grid;
+  gap: 4px;
+  color: var(--theme-text-muted);
+  font-size: clamp(1rem, 2vw, 1.1rem);
+  line-height: 1.6;
+}
+
+.not-found-copy p { margin: 0; }
+.not-found-action { margin-top: 10px; padding: 0 28px; }
+
 .login-visual {
   min-width: 0;
   display: flex;

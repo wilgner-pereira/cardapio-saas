@@ -4,9 +4,10 @@ import { useAuth } from "./auth/AuthContext.jsx";
 import { ProtectedArea } from "./auth/ProtectedArea.jsx";
 import { getAdminHome, PLATFORM_ADMIN, TENANT_ADMIN } from "./auth/roles.js";
 import { PlatformPage } from "./platform/PlatformPage.jsx";
-import { ArrowRight, Eye, EyeOff, Loader2, Lock, Plus, UserRound } from "./components/icons.js";
+import { ArrowRight, Eye, EyeOff, Loader2, Lock, Plus, Search, UserRound, Utensils } from "./components/icons.js";
 import { EstablishmentEditorModal } from "./components/EstablishmentEditorModal.jsx";
 import { MenuShell } from "./components/MenuShell.jsx";
+import { NotFoundState } from "./components/NotFoundState.jsx";
 import { ProductEditorModal } from "./components/ProductEditorModal.jsx";
 import { ThemePickerModal } from "./components/ThemePickerModal.jsx";
 
@@ -33,7 +34,11 @@ function navigate(path, { replace = false } = {}) {
 function parseRoute(path) {
   const publicMatch = path.match(/^\/cardapio\/([^/]+)\/?$/);
   if (publicMatch) {
-    return { name: "public", username: decodeURIComponent(publicMatch[1]) };
+    try {
+      return { name: "public", username: decodeURIComponent(publicMatch[1]) };
+    } catch {
+      return { name: "not-found" };
+    }
   }
   const platformMatch = path.match(/^\/plataforma(?:\/(clientes|administradores)(?:\/(\d+))?)?\/?$/);
   if (platformMatch && !(platformMatch[1] === "administradores" && platformMatch[2])) {
@@ -42,10 +47,10 @@ function parseRoute(path) {
   if (/^\/painel(?:\/|$)/.test(path)) {
     return { name: "panel" };
   }
-  if (path.startsWith("/login")) {
+  if (/^\/login\/?$/.test(path)) {
     return { name: "login" };
   }
-  return { name: "home" };
+  return { name: path === "/" ? "home" : "not-found" };
 }
 
 function sortProducts(products) {
@@ -94,7 +99,14 @@ export function App() {
     return <HomePage />;
   }
 
-  return <PublicMenuPage username={route.username} />;
+  if (route.name === "public") {
+    return <PublicMenuPage key={route.username} username={route.username} />;
+  }
+
+  return <NotFoundState Icon={Search} title="Página não encontrada"
+    description="Desculpe, não encontramos esta página."
+    detail="Confira o endereço ou volte para o início."
+    onHome={() => navigate("/")} />;
 }
 
 function PublicMenuPage({ username }) {
@@ -102,37 +114,55 @@ function PublicMenuPage({ username }) {
   const [establishment, setEstablishment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let active = true;
     setError("");
-
+    setNotFound(false);
     setLoading(true);
-    Promise.all([
-      api.getPublicMenu(username),
-      api.getPublicEstablishment(username)
-    ])
-      .then(([productData, establishmentData]) => {
-        if (active) {
-          setProducts(productData);
+    const productRequest = api.getPublicMenu(username).then(
+      data => ({ data }),
+      failure => ({ failure })
+    );
+    api.getPublicEstablishment(username)
+      .then(async establishmentData => {
+        const productResult = await productRequest;
+        if (!active) return;
+        if ("failure" in productResult) {
+          setError(productResult.failure?.message || "Não foi possível carregar o cardápio");
+        } else {
+          setProducts(productResult.data);
           setEstablishment(establishmentData);
         }
       })
-      .catch(err => {
-        if (active) {
-          setError(err.message);
-        }
+      .catch(failure => {
+        if (!active) return;
+        if (failure?.status === 404) setNotFound(true);
+        else setError(failure?.message || "Não foi possível carregar o cardápio");
       })
       .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       });
 
     return () => {
       active = false;
     };
   }, [username]);
+
+  if (loading) {
+    return <main className="center-screen" role="status">
+      <Loader2 className="spin" size={28} aria-hidden="true" />
+      <span>Carregando cardápio…</span>
+    </main>;
+  }
+
+  if (notFound) {
+    return <NotFoundState Icon={Utensils} title="Cardápio não encontrado"
+      description="Desculpe, não encontramos um cardápio para este endereço."
+      detail="Confira o link e tente novamente."
+      onHome={() => navigate("/")} />;
+  }
 
   return (
     <MenuShell
