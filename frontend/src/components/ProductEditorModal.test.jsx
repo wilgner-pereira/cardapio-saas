@@ -67,10 +67,36 @@ describe("ProductEditorModal accessibility and dismiss behavior", () => {
   });
   it("dismisses the modal on Escape key press", () => {
     const onClose = vi.fn();
-    render(<ProductEditorModal onClose={onClose} onSubmit={vi.fn()} />);
+    const { container } = render(<ProductEditorModal onClose={onClose} onSubmit={vi.fn()} />);
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    const dialog = container.querySelector('[role="dialog"]');
+    fireEvent.keyDown(dialog, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("focuses modal section on mount, traps focus on Tab / Shift+Tab, and restores focus on unmount", () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Open";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const { container, unmount } = render(<ProductEditorModal onClose={vi.fn()} onSubmit={vi.fn()} />);
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).toHaveFocus();
+
+    const closeButton = screen.getByRole("button", { name: "Fechar" });
+    const submitButton = screen.getByRole("button", { name: "Salvar" });
+
+    closeButton.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(submitButton).toHaveFocus();
+
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: false });
+    expect(closeButton).toHaveFocus();
+
+    unmount();
+    expect(trigger).toHaveFocus();
+    document.body.removeChild(trigger);
   });
 
   it("dismisses the modal when clicking the backdrop outside section content", () => {

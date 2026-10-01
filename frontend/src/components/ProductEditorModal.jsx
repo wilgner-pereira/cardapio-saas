@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "./icons.js";
 import { IMAGE_ACCEPT } from "../api/uploadValidation.js";
 import { useOptimizedImage } from "./useOptimizedImage.js";
@@ -17,6 +17,17 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
   const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    const trigger = document.activeElement;
+    modalRef.current?.focus();
+    return () => {
+      if (trigger?.isConnected && trigger.focus) {
+        trigger.focus();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (product) {
@@ -40,16 +51,34 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
+  function handleKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose?.();
+      return;
+    }
+
+    if (event.key === "Tab" && modalRef.current) {
+      const focusableElements = modalRef.current.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), a[href]'
+      );
+      if (focusableElements.length === 0) {
         event.preventDefault();
-        onClose?.();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && (document.activeElement === firstElement || document.activeElement === modalRef.current)) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && (document.activeElement === lastElement || document.activeElement === modalRef.current)) {
+        event.preventDefault();
+        firstElement.focus();
       }
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -83,7 +112,15 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
-      <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+      <section
+        ref={modalRef}
+        className="product-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-modal-title"
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+      >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={20} />
         </button>
