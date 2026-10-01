@@ -17,10 +17,13 @@ describe("shared menu hero", () => {
     expect(container.querySelector(".hero-waves")).toBeNull();
     expect(container.querySelector(".hero-overlay")).toBeInTheDocument();
     expect(container.querySelector(".hero-cover")).toHaveAttribute("fetchpriority", "high");
+    expect(container.querySelector(".hero-cover")).not.toHaveAttribute("draggable");
     fireEvent.error(container.querySelector(".hero-cover"));
     expect(container.querySelector(".hero-waves")).toBeInTheDocument();
     rerender(<MenuHero name="Menu" imageUrl="https://example.com/new.jpg" />);
     expect(container.querySelector(".hero-cover")).toHaveAttribute("src", "https://example.com/new.jpg");
+    expect(container.querySelector(".hero-cover")).toHaveAttribute("draggable", "false");
+    expect(container.querySelector(".hero-cover")).toHaveClass("menu-image-no-drag");
     rerender(<MenuHero name="Menu" imageUrl="" />);
     expect(container.querySelector(".hero-waves")).toBeInTheDocument();
   });

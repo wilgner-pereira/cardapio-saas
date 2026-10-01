@@ -21,7 +21,8 @@ export function MenuHero({ name, imageUrl, isAdmin = false, children }) {
     <section className={`hero${hasImage ? " hero-with-image" : ""}${isAdmin ? " hero-editor" : ""}${name.length > 45 ? " hero-long-name" : ""}`} aria-label="Topo do cardápio">
       {hasImage ? (
         <>
-          <img key={source} className="hero-cover" src={source} alt="" fetchpriority="high"
+          <img key={source} className={`hero-cover${isAdmin ? "" : " menu-image-no-drag"}`} src={source} alt="" fetchpriority="high"
+            draggable={isAdmin ? undefined : false}
             onError={() => setFailedSource(source)} />
           <div className="hero-overlay" aria-hidden="true" />
         </>

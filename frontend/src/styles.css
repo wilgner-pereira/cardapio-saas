@@ -384,6 +384,10 @@ button {
 }
 
 .hero-cover { object-fit: cover; object-position: center; }
+.menu-image-no-drag {
+  -webkit-user-drag: none;
+  user-select: none;
+}
 .hero-overlay {
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.68) 78%, rgba(0, 0, 0, 0.12) 100%);
 }

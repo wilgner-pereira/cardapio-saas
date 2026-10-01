@@ -389,7 +389,7 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
   return (
     <article className={`product-card ${hasImage ? "has-image" : ""} ${isAdmin ? "admin-card" : ""} ${!product.ativo ? "inactive" : ""} ${product._pending ? "pending" : ""}`}>
       {hasImage && (
-        <ProductImage imageUrl={product.imageUrl} name={product.nome} />
+        <ProductImage imageUrl={product.imageUrl} name={product.nome} isAdmin={isAdmin} />
       )}
 
       <div className="product-copy">
@@ -425,7 +425,7 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
   );
 }
 
-function ProductImage({ imageUrl, name }) {
+function ProductImage({ imageUrl, name, isAdmin }) {
   const [failed, setFailed] = useState(false);
   const resolvedImageUrl = api.resolveImageUrl(imageUrl);
 
@@ -439,7 +439,9 @@ function ProductImage({ imageUrl, name }) {
 
   return (
     <div className="product-image-wrap">
-      <img src={resolvedImageUrl} alt={name} loading="lazy" onError={() => setFailed(true)} />
+      <img src={resolvedImageUrl} alt={name} loading="lazy"
+        className={isAdmin ? undefined : "menu-image-no-drag"} draggable={isAdmin ? undefined : false}
+        onError={() => setFailed(true)} />
     </div>
   );
 }

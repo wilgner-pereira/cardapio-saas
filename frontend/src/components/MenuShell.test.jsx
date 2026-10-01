@@ -10,8 +10,29 @@ describe('MenuShell', () => {
     const { container } = render(<MenuShell username="test" establishment={{ nome: 'Pizzaria', heroImageUrl: coverUrl }} products={[
       { id: 1, nome: 'Pizza', descricao: 'Queijo', preco: 20, categoria: 'Pizzas', ativo: true, imageUrl: productUrl }
     ]} />);
+    const cover = container.querySelector('.hero-cover');
+    const product = container.querySelector('.product-image-wrap img');
+    expect(cover).toHaveAttribute('src', coverUrl);
+    expect(cover).toHaveAttribute('draggable', 'false');
+    expect(cover).toHaveClass('menu-image-no-drag');
+    expect(product).toHaveAttribute('src', productUrl);
+    expect(product).toHaveAttribute('alt', 'Pizza');
+    expect(product).toHaveAttribute('draggable', 'false');
+    expect(product).toHaveClass('menu-image-no-drag');
+    expect(fireEvent.contextMenu(product)).toBe(true);
+    fireEvent.error(product);
+    expect(container.querySelector('.product-image-wrap img')).toBeNull();
     expect(container.querySelector('.hero-cover')).toHaveAttribute('src', coverUrl);
-    expect(container.querySelector('.product-image-wrap img')).toHaveAttribute('src', productUrl);
+  });
+
+  it('leaves images in the admin menu draggable as before', () => {
+    const { container } = render(<MenuShell username="test" mode="admin" establishment={{ heroImageUrl: 'https://example.com/cover.webp' }} products={[
+      { id: 1, nome: 'Pizza', categoria: 'Pizzas', ativo: true, imageUrl: 'https://example.com/pizza.webp' }
+    ]} />);
+    for (const image of container.querySelectorAll('.hero-cover, .product-image-wrap img')) {
+      expect(image).not.toHaveAttribute('draggable');
+      expect(image).not.toHaveClass('menu-image-no-drag');
+    }
   });
 
   it('uses the saved product image shape in public and admin menus and accepts a preview override', () => {
