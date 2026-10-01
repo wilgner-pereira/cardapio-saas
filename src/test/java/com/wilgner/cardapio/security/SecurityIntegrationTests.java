@@ -97,6 +97,12 @@ public class SecurityIntegrationTests {
     }
 
     @Test
+    void respostaDeveConterHeaderContentSecurityPolicy() throws Exception {
+        mockMvc.perform(get("/auth/session"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none';"));
+    }
+
+    @Test
     void acessoSemToken_deveRetornar401() throws Exception {
         mockMvc.perform(get("/painel/estabelecimento"))
                 .andExpect(status().isUnauthorized());
