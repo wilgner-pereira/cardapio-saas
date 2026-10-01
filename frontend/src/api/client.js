@@ -293,6 +293,14 @@ export const api = {
     return request("/plataforma/estabelecimentos", { method: "POST", body: payload });
   },
 
+  updatePlatformEstablishment(id, payload) {
+    return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}`, { method: "PUT", body: payload });
+  },
+
+  updatePlatformClientPassword(id, password) {
+    return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}/senha`, { method: "PATCH", body: { password } });
+  },
+
   activatePlatformEstablishment(id) {
     return request(`/plataforma/estabelecimentos/${encodeURIComponent(id)}/ativar`, { method: "PATCH" });
   },

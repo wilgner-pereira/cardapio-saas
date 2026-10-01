@@ -925,6 +925,8 @@ Current files include:
 
 ```text
 CreateAccountModal.jsx
+EditClientModal.jsx
+ChangeClientPasswordModal.jsx
 PlatformClientDetails.jsx
 PlatformClients.jsx
 PlatformDashboard.jsx
@@ -955,6 +957,8 @@ This component coordinates:
 - platform customer list loading;
 - customer details;
 - customer creation;
+- customer and access editing;
+- customer password reset;
 - activation;
 - deactivation;
 - deletion;

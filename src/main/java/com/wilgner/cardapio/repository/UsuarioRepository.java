@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
@@ -19,6 +20,9 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findWithRolesAndEstabelecimentoByUsername(String username);
 
     boolean existsByUsernameOrEmail(String username, String email);
+
+    @Query("SELECT u FROM Usuario u JOIN u.roles r WHERE u.estabelecimento.id = :estabelecimentoId AND r.roleName = 'ROLE_TENANT_ADMIN'")
+    List<Usuario> findTenantAdminsByEstabelecimentoId(@Param("estabelecimentoId") Long estabelecimentoId);
 
     @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM Usuario u JOIN u.roles r WHERE r.roleName = :roleName")
     boolean existsByRoleName(@Param("roleName") String roleName);

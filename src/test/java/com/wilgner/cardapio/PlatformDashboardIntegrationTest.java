@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -29,6 +30,7 @@ class PlatformDashboardIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired UsuarioRepository users;
+    @Autowired PasswordEncoder passwordEncoder;
 
     @Test
     void customerListExcludesPlatformAccountsAndCustomerEndpointsProtectThem() throws Exception {
@@ -49,6 +51,12 @@ class PlatformDashboardIntegrationTest {
                     .andExpect(status().isNotFound());
         }
         mvc.perform(delete("/plataforma/estabelecimentos/{id}", adminEstablishmentId).cookie(adminCookies).with(csrf()))
+                .andExpect(status().isNotFound());
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", adminEstablishmentId).cookie(adminCookies).with(csrf())
+                        .contentType("application/json").content(clientUpdatePayload("other-name", "other@example.test", "Outro cliente")))
+                .andExpect(status().isNotFound());
+        mvc.perform(patch("/plataforma/estabelecimentos/{id}/senha", adminEstablishmentId).cookie(adminCookies).with(csrf())
+                        .contentType("application/json").content("{\"password\":\"new-test-password\"}"))
                 .andExpect(status().isNotFound());
         assertThat(users.findByUsername(platform)).isPresent();
         mvc.perform(get("/auth/session").cookie(adminCookies))
@@ -94,6 +102,119 @@ class PlatformDashboardIntegrationTest {
     }
 
     @Test
+    void platformAdminUpdatesClientAndAccessAtomicallyWithoutChangingSlugOrExposingPassword() throws Exception {
+        String tenant = unique("edit-client");
+        long id = createClient(tenant).get("id").asLong();
+        String nextUsername = unique("renamed-client");
+        String nextEmail = nextUsername + "@example.test";
+        Cookie[] adminCookies = login(createAdmin());
+
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies).with(csrf())
+                        .contentType("application/json")
+                        .content(clientUpdatePayload(nextUsername, nextEmail, "Restaurante atualizado")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nome").value("Restaurante atualizado"))
+                .andExpect(jsonPath("$.username").value(nextUsername))
+                .andExpect(jsonPath("$.email").value(nextEmail))
+                .andExpect(jsonPath("$.slug").value(tenant))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.roles").doesNotExist());
+        mvc.perform(get("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nome").value("Restaurante atualizado"))
+                .andExpect(jsonPath("$.endereco").value("Rua atualizada, 20"))
+                .andExpect(jsonPath("$.username").value(nextUsername))
+                .andExpect(jsonPath("$.email").value(nextEmail))
+                .andExpect(jsonPath("$.slug").value(tenant))
+                .andExpect(jsonPath("$.password").doesNotExist());
+        assertThat(users.findByUsername(tenant)).isEmpty();
+        assertThat(users.findByUsername(nextUsername)).isPresent();
+        mvc.perform(post("/auth/login").contentType("application/json")
+                        .content("{\"username\":\"" + nextUsername + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void duplicateAccessValuesAreRejectedAndLeaveClientUnchanged() throws Exception {
+        String first = unique("first-client");
+        String second = unique("second-client");
+        long id = createClient(first).get("id").asLong();
+        createClient(second);
+        Cookie[] adminCookies = login(createAdmin());
+
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies).with(csrf())
+                        .contentType("application/json")
+                        .content(clientUpdatePayload(second, first + "@example.test", "Mudança recusada")))
+                .andExpect(status().isConflict());
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies).with(csrf())
+                        .contentType("application/json")
+                        .content(clientUpdatePayload(first, second + "@example.test", "Mudança recusada")))
+                .andExpect(status().isConflict());
+        mvc.perform(get("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies))
+                .andExpect(jsonPath("$.nome").value("Restaurante de teste"))
+                .andExpect(jsonPath("$.username").value(first));
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies).with(csrf())
+                        .contentType("application/json")
+                        .content(clientUpdatePayload(first, first + "@example.test", "Mesmo acesso")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void passwordResetHashesPasswordAndRevokesAllPreviousRefreshSessions() throws Exception {
+        String tenant = unique("password-client");
+        long id = createClient(tenant).get("id").asLong();
+        Cookie[] first = login(tenant);
+        Cookie[] second = login(tenant);
+        long userId = users.findByUsername(tenant).orElseThrow().getId();
+        String newPassword = "updated-test-password";
+        Cookie[] adminCookies = login(createAdmin());
+
+        mvc.perform(patch("/plataforma/estabelecimentos/{id}/senha", id).cookie(adminCookies).with(csrf())
+                        .contentType("application/json").content("{\"password\":\"" + newPassword + "\"}"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+        String stored = users.findByUsername(tenant).orElseThrow().getPassword();
+        assertThat(stored).isNotEqualTo(newPassword);
+        assertThat(passwordEncoder.matches(newPassword, stored)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM refresh_session WHERE usuario_id=? AND revoked_at IS NULL", Integer.class, userId)).isZero();
+        mvc.perform(post("/auth/refresh").cookie(first)).andExpect(status().isUnauthorized());
+        mvc.perform(post("/auth/refresh").cookie(second)).andExpect(status().isUnauthorized());
+        mvc.perform(post("/auth/login").contentType("application/json")
+                        .content("{\"username\":\"" + tenant + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/auth/login").contentType("application/json")
+                        .content("{\"username\":\"" + tenant + "\",\"password\":\"" + newPassword + "\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void invalidClientUpdatesAndPasswordsReturnFieldErrorsWithoutChangingStoredData() throws Exception {
+        String tenant = unique("invalid-client");
+        long id = createClient(tenant).get("id").asLong();
+        Cookie[] adminCookies = login(createAdmin());
+        String previousHash = users.findByUsername(tenant).orElseThrow().getPassword();
+
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies).with(csrf())
+                        .contentType("application/json")
+                        .content(clientUpdatePayload("invalid username", "invalid-email", "Restaurante alterado")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.username").exists())
+                .andExpect(jsonPath("$.fieldErrors.email").exists());
+        for (String password : new String[]{"short", "x".repeat(101)}) {
+            mvc.perform(patch("/plataforma/estabelecimentos/{id}/senha", id).cookie(adminCookies).with(csrf())
+                            .contentType("application/json").content("{\"password\":\"" + password + "\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.password").exists());
+        }
+        mvc.perform(get("/plataforma/estabelecimentos/{id}", id).cookie(adminCookies))
+                .andExpect(jsonPath("$.nome").value("Restaurante de teste"))
+                .andExpect(jsonPath("$.username").value(tenant));
+        assertThat(users.findByUsername(tenant).orElseThrow().getPassword()).isEqualTo(previousHash);
+    }
+
+    @Test
     void deletingAClientCascadesItsUsersProductsAndSessionsButPreservesStorageAccounting() throws Exception {
         String tenant = unique("delete-client");
         long id = createClient(tenant).get("id").asLong();
@@ -127,7 +248,9 @@ class PlatformDashboardIntegrationTest {
                 get("/plataforma/estabelecimentos"), get("/plataforma/estabelecimentos/" + id),
                 post("/plataforma/estabelecimentos"), post("/plataforma/admins"),
                 patch("/plataforma/estabelecimentos/" + id + "/ativar"),
-                patch("/plataforma/estabelecimentos/" + id + "/desativar"), delete("/plataforma/estabelecimentos/" + id)}) {
+                patch("/plataforma/estabelecimentos/" + id + "/desativar"),
+                put("/plataforma/estabelecimentos/" + id),
+                patch("/plataforma/estabelecimentos/" + id + "/senha"), delete("/plataforma/estabelecimentos/" + id)}) {
             mvc.perform(request.cookie(tenantCookies).with(csrf()).contentType("application/json").content("{}"))
                     .andExpect(status().isForbidden());
         }
@@ -135,7 +258,9 @@ class PlatformDashboardIntegrationTest {
         for (var request : new org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder[]{
                 post("/plataforma/estabelecimentos"), post("/plataforma/admins"),
                 patch("/plataforma/estabelecimentos/" + id + "/ativar"),
-                patch("/plataforma/estabelecimentos/" + id + "/desativar"), delete("/plataforma/estabelecimentos/" + id)}) {
+                patch("/plataforma/estabelecimentos/" + id + "/desativar"),
+                put("/plataforma/estabelecimentos/" + id),
+                patch("/plataforma/estabelecimentos/" + id + "/senha"), delete("/plataforma/estabelecimentos/" + id)}) {
             mvc.perform(request.cookie(adminCookies).contentType("application/json").content("{}"))
                     .andExpect(status().isForbidden());
         }
@@ -149,6 +274,13 @@ class PlatformDashboardIntegrationTest {
         Long userId = users.findByUsername(platform).orElseThrow().getId();
         jdbc.update("INSERT INTO user_roles (user_id,role_id) VALUES (?,?)", userId, roleId);
         mvc.perform(delete("/plataforma/estabelecimentos/{id}", id).cookie(login(platform)).with(csrf()))
+                .andExpect(status().isNotFound());
+        mvc.perform(put("/plataforma/estabelecimentos/{id}", id).cookie(login(platform)).with(csrf())
+                        .contentType("application/json")
+                        .content(clientUpdatePayload("other-name", "other@example.test", "Outro cliente")))
+                .andExpect(status().isNotFound());
+        mvc.perform(patch("/plataforma/estabelecimentos/{id}/senha", id).cookie(login(platform)).with(csrf())
+                        .contentType("application/json").content("{\"password\":\"new-test-password\"}"))
                 .andExpect(status().isNotFound());
         assertThat(users.findByUsername(platform)).isPresent();
     }
@@ -186,6 +318,14 @@ class PlatformDashboardIntegrationTest {
                  "descricao":"Cozinha artesanal","horarioFuncionamento":"18h às 23h","telefone":"(31) 99999-1111",
                  "endereco":"Rua de teste, 10","emailContato":"contato@example.test"}
                 """.formatted(username, username, PASSWORD);
+    }
+
+    private String clientUpdatePayload(String username, String email, String name) {
+        return """
+                {"nome":"%s","username":"%s","email":"%s","descricao":"Nova descrição",
+                 "horarioFuncionamento":"10h às 20h","telefone":"(31) 99999-2222",
+                 "endereco":"Rua atualizada, 20","emailContato":"novo-contato@example.test"}
+                """.formatted(name, username, email);
     }
 
     private String unique(String prefix) {

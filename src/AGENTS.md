@@ -446,6 +446,8 @@ Current operations:
 POST   /plataforma/estabelecimentos
 GET    /plataforma/estabelecimentos
 GET    /plataforma/estabelecimentos/{id}
+PUT    /plataforma/estabelecimentos/{id}
+PATCH  /plataforma/estabelecimentos/{id}/senha
 PATCH  /plataforma/estabelecimentos/{id}/ativar
 PATCH  /plataforma/estabelecimentos/{id}/desativar
 DELETE /plataforma/estabelecimentos/{id}
@@ -684,6 +686,8 @@ Responsibilities include:
 - creating establishments;
 - listing establishments;
 - loading establishment details;
+- updating customer establishment and tenant administrator access;
+- resetting customer passwords and revoking refresh sessions;
 - activating establishments;
 - deactivating establishments;
 - deleting establishments;

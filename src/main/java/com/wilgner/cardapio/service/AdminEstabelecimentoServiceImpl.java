@@ -6,6 +6,9 @@ import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoCreateReque
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoMapper;
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoResponseDTO;
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoResumoDTO;
+import com.wilgner.cardapio.model.dto.estabelecimento.PlatformClientDetailsDTO;
+import com.wilgner.cardapio.model.dto.estabelecimento.PlatformClientPasswordRequestDTO;
+import com.wilgner.cardapio.model.dto.estabelecimento.PlatformClientUpdateRequestDTO;
 import com.wilgner.cardapio.model.dto.auth.RegisterRequestDTO;
 import com.wilgner.cardapio.model.dto.auth.RegisterResponseDTO;
 import com.wilgner.cardapio.model.entity.Estabelecimento;
@@ -15,6 +18,7 @@ import com.wilgner.cardapio.repository.EstabelecimentoRepository;
 import com.wilgner.cardapio.repository.RoleRepository;
 import com.wilgner.cardapio.repository.UsuarioRepository;
 import com.wilgner.cardapio.security.SecurityAuditLogger;
+import com.wilgner.cardapio.security.RefreshSessionService;
 import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,19 +35,22 @@ public class AdminEstabelecimentoServiceImpl {
     private final EstabelecimentoMapper estabelecimentoMapper;
     private final PasswordEncoder passwordEncoder;
     private final SecurityAuditLogger auditLogger;
+    private final RefreshSessionService refreshSessionService;
 
     public AdminEstabelecimentoServiceImpl(EstabelecimentoRepository estabelecimentoRepository,
                                            UsuarioRepository usuarioRepository,
                                            RoleRepository roleRepository,
                                            EstabelecimentoMapper estabelecimentoMapper,
                                            PasswordEncoder passwordEncoder,
-                                           SecurityAuditLogger auditLogger) {
+                                           SecurityAuditLogger auditLogger,
+                                           RefreshSessionService refreshSessionService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.roleRepository = roleRepository;
         this.estabelecimentoMapper = estabelecimentoMapper;
         this.passwordEncoder = passwordEncoder;
         this.auditLogger = auditLogger;
+        this.refreshSessionService = refreshSessionService;
     }
 
     @Transactional
@@ -129,10 +136,49 @@ public class AdminEstabelecimentoServiceImpl {
     }
 
     @Transactional
-    public EstabelecimentoResponseDTO obterEstabelecimento(Long id) {
-        Estabelecimento estabelecimento = estabelecimentoRepository.findPlatformClientById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
-        return estabelecimentoMapper.toDTO(estabelecimento);
+    public PlatformClientDetailsDTO obterEstabelecimento(Long id) {
+        Estabelecimento estabelecimento = findClient(id);
+        return clientDetails(estabelecimento, findTenantAdmin(id));
+    }
+
+    @Transactional
+    public PlatformClientDetailsDTO atualizarEstabelecimento(Long id, PlatformClientUpdateRequestDTO dto) {
+        Estabelecimento estabelecimento = findClient(id);
+        Usuario usuario = findTenantAdmin(id);
+        String username = dto.username().trim();
+        String email = dto.email().trim().toLowerCase(java.util.Locale.ROOT);
+
+        usuarioRepository.findByUsername(username)
+                .filter(other -> !other.getId().equals(usuario.getId()))
+                .ifPresent(other -> { throw new ConflictException("Username já está em uso"); });
+        usuarioRepository.findByEmail(email)
+                .filter(other -> !other.getId().equals(usuario.getId()))
+                .ifPresent(other -> { throw new ConflictException("Email já está em uso"); });
+
+        estabelecimento.setNome(dto.nome().trim());
+        estabelecimento.setDescricao(dto.descricao());
+        estabelecimento.setHorarioFuncionamento(dto.horarioFuncionamento());
+        estabelecimento.setTelefone(dto.telefone());
+        estabelecimento.setEndereco(dto.endereco());
+        estabelecimento.setEmailContato(dto.emailContato());
+        usuario.setUsername(username);
+        usuario.setEmail(email);
+        estabelecimentoRepository.saveAndFlush(estabelecimento);
+        usuarioRepository.saveAndFlush(usuario);
+        auditLogger.recordCurrent(SecurityAuditLogger.Event.ESTABLISHMENT_UPDATED,
+                usuario.getId(), estabelecimento.getId(), null);
+        return clientDetails(estabelecimento, usuario);
+    }
+
+    @Transactional
+    public void redefinirSenha(Long id, PlatformClientPasswordRequestDTO dto) {
+        findClient(id);
+        Usuario usuario = findTenantAdmin(id);
+        usuario.setPassword(passwordEncoder.encode(dto.password()));
+        usuarioRepository.saveAndFlush(usuario);
+        refreshSessionService.revokeAllForUser(usuario.getId());
+        auditLogger.recordCurrent(SecurityAuditLogger.Event.CLIENT_PASSWORD_RESET,
+                usuario.getId(), id, null);
     }
 
     @Transactional
@@ -163,6 +209,27 @@ public class AdminEstabelecimentoServiceImpl {
         estabelecimentoRepository.delete(estabelecimento);
         auditLogger.recordCurrent(SecurityAuditLogger.Event.ESTABLISHMENT_DELETED,
                 null, id, null);
+    }
+
+    private Estabelecimento findClient(Long id) {
+        return estabelecimentoRepository.findPlatformClientById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
+    }
+
+    private Usuario findTenantAdmin(Long estabelecimentoId) {
+        List<Usuario> admins = usuarioRepository.findTenantAdminsByEstabelecimentoId(estabelecimentoId);
+        if (admins.isEmpty()) {
+            throw new ResourceNotFoundException("Acesso do cliente não encontrado");
+        }
+        if (admins.size() != 1) {
+            throw new ConflictException("Cliente possui mais de um administrador vinculado");
+        }
+        return admins.get(0);
+    }
+
+    private PlatformClientDetailsDTO clientDetails(Estabelecimento estabelecimento, Usuario usuario) {
+        return new PlatformClientDetailsDTO(estabelecimentoMapper.toDTO(estabelecimento),
+                usuario.getUsername(), usuario.getEmail());
     }
 
     private String gerarSlug(String username) {

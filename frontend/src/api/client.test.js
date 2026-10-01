@@ -285,6 +285,8 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     ["getPlatformEstablishments", [], "/plataforma/estabelecimentos", "GET"],
     ["getPlatformEstablishment", [12], "/plataforma/estabelecimentos/12", "GET"],
     ["createPlatformEstablishment", [{ nome: "Novo cliente" }], "/plataforma/estabelecimentos", "POST"],
+    ["updatePlatformEstablishment", [12, { nome: "Cliente editado" }], "/plataforma/estabelecimentos/12", "PUT"],
+    ["updatePlatformClientPassword", [12, "nova-senha-segura"], "/plataforma/estabelecimentos/12/senha", "PATCH"],
     ["activatePlatformEstablishment", [12], "/plataforma/estabelecimentos/12/ativar", "PATCH"],
     ["deactivatePlatformEstablishment", [12], "/plataforma/estabelecimentos/12/desativar", "PATCH"],
     ["deletePlatformEstablishment", [12], "/plataforma/estabelecimentos/12", "DELETE"],
@@ -300,6 +302,8 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     expect(options.headers).not.toHaveProperty("Authorization");
     if (verb !== "GET") expect(options.headers["X-XSRF-TOKEN"]).toBe("test-csrf");
     if (verb === "POST") expect(JSON.parse(options.body)).toEqual(args[0]);
+    if (method === "updatePlatformEstablishment") expect(JSON.parse(options.body)).toEqual(args[1]);
+    if (method === "updatePlatformClientPassword") expect(JSON.parse(options.body)).toEqual({ password: args[1] });
   });
 
   it("returns platform validation messages and field errors to the form", async () => {

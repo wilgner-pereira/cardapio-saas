@@ -8,6 +8,8 @@ import { PlatformClients } from "./PlatformClients.jsx";
 import { PlatformDashboard } from "./PlatformDashboard.jsx";
 import { PlatformLayout } from "./PlatformLayout.jsx";
 import { PlatformModal } from "./PlatformModal.jsx";
+import { EditClientModal } from "./EditClientModal.jsx";
+import { ChangeClientPasswordModal } from "./ChangeClientPasswordModal.jsx";
 
 export function PlatformPage({ section, clientId, onNavigate }) {
   const auth = useAuth();
@@ -86,7 +88,7 @@ export function PlatformPage({ section, clientId, onNavigate }) {
           ? await api.activatePlatformEstablishment(client.id)
           : await api.deactivatePlatformEstablishment(client.id);
         setClients(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item));
-        setDetail(current => current.id === String(updated.id) ? { id: current.id, client: updated } : current);
+        setDetail(current => current.id === String(updated.id) ? { id: current.id, client: { ...current.client, ...updated } } : current);
         setNotice(`${updated.nome} foi ${updated.ativo ? "ativado" : "desativado"}.`);
       }
       setModal(null);
@@ -139,7 +141,9 @@ export function PlatformPage({ section, clientId, onNavigate }) {
         {section === "clientes" && !clientId && <PlatformClients {...listProps} {...actions} />}
         {clientId && <PlatformClientDetails client={detail.id === clientId ? detail.client : null}
           loading={detail.id !== clientId || detail.loading} error={detail.id === clientId ? detail.error : ""}
-          onRetry={() => setDetailReload(value => value + 1)} onNavigate={onNavigate} {...actions} />}
+          onRetry={() => setDetailReload(value => value + 1)} onNavigate={onNavigate}
+          onEdit={client => openModal({ kind: "edit", client })}
+          onChangePassword={client => openModal({ kind: "password", client })} {...actions} />}
         {section === "administradores" && <>
           <div className="platform-page-heading"><div><span className="platform-eyebrow">Acesso à plataforma</span><h1>Administradores</h1><p>Cadastre outras pessoas para administrar o SaaS.</p></div></div>
           <section className="platform-card platform-admin-card">
@@ -157,6 +161,16 @@ export function PlatformPage({ section, clientId, onNavigate }) {
         setNotice(`${created.nome} foi cadastrado com sucesso.`);
         setReload(value => value + 1);
       } else setNotice(`Administrador ${created.username} criado com sucesso.`);
+    }} />}
+    {modal?.kind === "edit" && <EditClientModal client={modal.client} onClose={closeModal} onUpdated={updated => {
+      setDetail(current => current.id === String(updated.id) ? { id: current.id, client: updated } : current);
+      setClients(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item));
+      setModal(null);
+      setNotice(`${updated.nome} foi atualizado.`);
+    }} />}
+    {modal?.kind === "password" && <ChangeClientPasswordModal client={modal.client} onClose={closeModal} onChanged={() => {
+      setModal(null);
+      setNotice(`Senha de ${modal.client.nome} alterada com sucesso.`);
     }} />}
     {confirming && <PlatformModal title={`${deleting ? "Excluir" : "Desativar"} ${modal.client.nome}?`}
       description={deleting

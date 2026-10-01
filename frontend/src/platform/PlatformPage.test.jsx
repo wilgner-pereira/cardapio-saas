@@ -8,14 +8,15 @@ const auth = vi.hoisted(() => ({ username: "operator", logout: vi.fn() }));
 vi.mock("../auth/AuthContext.jsx", () => ({ useAuth: () => auth }));
 vi.mock("../api/client.js", () => ({ api: {
   getPlatformEstablishments: vi.fn(), getPlatformEstablishment: vi.fn(), createPlatformEstablishment: vi.fn(),
-  activatePlatformEstablishment: vi.fn(), deactivatePlatformEstablishment: vi.fn(), deletePlatformEstablishment: vi.fn(), createPlatformAdmin: vi.fn()
+  activatePlatformEstablishment: vi.fn(), deactivatePlatformEstablishment: vi.fn(), deletePlatformEstablishment: vi.fn(), createPlatformAdmin: vi.fn(),
+  updatePlatformEstablishment: vi.fn(), updatePlatformClientPassword: vi.fn()
 } }));
 
 const clients = [
   { id: 1, nome: "Pizzaria do João", slug: "pizza-joao", ativo: true },
   { id: 2, nome: "Hamburgueria Central", slug: "burger-central", ativo: false }
 ];
-const clientDetails = { ...clients[0], descricao: "Pizzas artesanais", telefone: "(31) 99999-1111", endereco: "Rua das Flores, 12", emailContato: "contato@example.test", horarioFuncionamento: "18h às 23h", tema: "grafite", criadoEm: "2026-09-20T12:30:00", atualizadoEm: "2026-09-29T10:00:00" };
+const clientDetails = { ...clients[0], username: "pizzaria-joao", email: "joao@example.test", password: "unexpected-hash", descricao: "Pizzas artesanais", telefone: "(31) 99999-1111", endereco: "Rua das Flores, 12", emailContato: "contato@example.test", horarioFuncionamento: "18h às 23h", tema: "grafite", criadoEm: "2026-09-20T12:30:00", atualizadoEm: "2026-09-29T10:00:00" };
 
 function renderPage(props = {}) {
   const onNavigate = vi.fn();
@@ -235,6 +236,9 @@ describe("platform management", () => {
       expect(screen.getByText(value)).toBeInTheDocument();
     }
     expect(screen.getByText("Criado em")).toBeInTheDocument();
+    expect(screen.getByText(clientDetails.username)).toBeInTheDocument();
+    expect(screen.getByText(clientDetails.email)).toBeInTheDocument();
+    expect(screen.queryByText("unexpected-hash")).not.toBeInTheDocument();
     expect(api.getPlatformEstablishment).toHaveBeenCalledWith("1");
     fireEvent.click(screen.getByRole("button", { name: "Desativar Pizzaria do João" }));
     fireEvent.click(screen.getByRole("button", { name: "Desativar cliente" }));
@@ -242,6 +246,66 @@ describe("platform management", () => {
     expect(screen.getByText(/estão indisponíveis/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: /Voltar para clientes/ }));
     expect(onNavigate).toHaveBeenCalledWith("/plataforma/clientes");
+  });
+
+  it("edits a prefilled client, shows validation errors, and updates details after success", async () => {
+    const user = userEvent.setup();
+    const updated = { ...clientDetails, nome: "Pizzaria atualizada", username: "novo-usuario", email: "novo@example.test" };
+    api.updatePlatformEstablishment.mockRejectedValueOnce(Object.assign(new Error("Dados inválidos"),
+      { fieldErrors: { username: "Username já está em uso" } })).mockResolvedValueOnce(updated);
+    renderPage({ clientId: "1" });
+    await screen.findByRole("heading", { name: "Pizzaria do João" });
+    await user.click(screen.getByRole("button", { name: "Editar cliente" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
+    expect(within(dialog).getByLabelText("Nome")).toHaveValue(clientDetails.nome);
+    expect(within(dialog).getByLabelText("Usuário")).toHaveValue(clientDetails.username);
+    expect(within(dialog).getByLabelText("Email de acesso")).toHaveValue(clientDetails.email);
+    expect(within(dialog).queryByLabelText("Slug")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Senha")).not.toBeInTheDocument();
+    await user.clear(within(dialog).getByLabelText("Nome"));
+    await user.type(within(dialog).getByLabelText("Nome"), updated.nome);
+    await user.clear(within(dialog).getByLabelText("Usuário"));
+    await user.type(within(dialog).getByLabelText("Usuário"), updated.username);
+    await user.clear(within(dialog).getByLabelText("Email de acesso"));
+    await user.type(within(dialog).getByLabelText("Email de acesso"), updated.email);
+    await user.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Dados inválidos");
+    expect(within(dialog).getByText("Username já está em uso")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Nome")).toHaveValue(updated.nome);
+    await user.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+    await screen.findByRole("heading", { name: updated.nome });
+    expect(api.updatePlatformEstablishment).toHaveBeenCalledWith(1, expect.objectContaining({
+      nome: updated.nome, username: updated.username, email: updated.email
+    }));
+    expect(screen.getByText(updated.username)).toBeInTheDocument();
+    expect(screen.getAllByText("pizza-joao")).toHaveLength(2);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("validates password confirmation, blocks duplicate submission, and clears the form after success", async () => {
+    const user = userEvent.setup();
+    const pending = deferred();
+    api.updatePlatformClientPassword.mockReturnValue(pending.promise);
+    renderPage({ clientId: "1" });
+    await screen.findByRole("heading", { name: "Pizzaria do João" });
+    await user.click(screen.getByRole("button", { name: "Alterar senha" }));
+    const dialog = screen.getByRole("dialog", { name: "Alterar senha" });
+    expect(within(dialog).getByLabelText("Nova senha")).toHaveValue("");
+    await user.type(within(dialog).getByLabelText("Nova senha"), "senha-nova-forte");
+    await user.type(within(dialog).getByLabelText("Confirmar nova senha"), "senha-diferente");
+    await user.click(within(dialog).getByRole("button", { name: "Alterar senha" }));
+    expect(within(dialog).getByText("As senhas não coincidem")).toBeInTheDocument();
+    expect(api.updatePlatformClientPassword).not.toHaveBeenCalled();
+    await user.clear(within(dialog).getByLabelText("Confirmar nova senha"));
+    await user.type(within(dialog).getByLabelText("Confirmar nova senha"), "senha-nova-forte");
+    await user.click(within(dialog).getByRole("button", { name: "Alterar senha" }));
+    expect(within(dialog).getByRole("button", { name: "Alterando…" })).toBeDisabled();
+    expect(api.updatePlatformClientPassword).toHaveBeenCalledTimes(1);
+    expect(api.updatePlatformClientPassword).toHaveBeenCalledWith(1, "senha-nova-forte");
+    await act(async () => pending.resolve(undefined));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Senha de Pizzaria do João alterada com sucesso.")).toBeInTheDocument();
+    expect(screen.queryByText("senha-nova-forte")).not.toBeInTheDocument();
   });
 
   it("shows detail errors and retries without displaying the previous client", async () => {

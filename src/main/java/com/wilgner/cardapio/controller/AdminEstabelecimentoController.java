@@ -3,6 +3,9 @@ package com.wilgner.cardapio.controller;
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoCreateRequestDTO;
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoResponseDTO;
 import com.wilgner.cardapio.model.dto.estabelecimento.EstabelecimentoResumoDTO;
+import com.wilgner.cardapio.model.dto.estabelecimento.PlatformClientDetailsDTO;
+import com.wilgner.cardapio.model.dto.estabelecimento.PlatformClientPasswordRequestDTO;
+import com.wilgner.cardapio.model.dto.estabelecimento.PlatformClientUpdateRequestDTO;
 import com.wilgner.cardapio.service.AdminEstabelecimentoServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -36,9 +39,22 @@ public class AdminEstabelecimentoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<EstabelecimentoResponseDTO> obterEstabelecimento(@PathVariable Long id) {
-        EstabelecimentoResponseDTO response = estabelecimentoService.obterEstabelecimento(id);
+    public ResponseEntity<PlatformClientDetailsDTO> obterEstabelecimento(@PathVariable Long id) {
+        PlatformClientDetailsDTO response = estabelecimentoService.obterEstabelecimento(id);
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<PlatformClientDetailsDTO> atualizarEstabelecimento(@PathVariable Long id,
+            @RequestBody @Valid PlatformClientUpdateRequestDTO dto) {
+        return ResponseEntity.ok(estabelecimentoService.atualizarEstabelecimento(id, dto));
+    }
+
+    @PatchMapping("/{id}/senha")
+    public ResponseEntity<Void> redefinirSenha(@PathVariable Long id,
+            @RequestBody @Valid PlatformClientPasswordRequestDTO dto) {
+        estabelecimentoService.redefinirSenha(id, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/ativar")

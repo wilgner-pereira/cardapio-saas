@@ -78,6 +78,11 @@ public class RefreshSessionService {
         });
     }
 
+    @Transactional
+    public void revokeAllForUser(Long userId) {
+        sessions.revokeAllForUser(userId, Instant.now());
+    }
+
     private static void requireActive(Usuario user) {
         boolean platformAdmin = user.getRoles().stream()
                 .anyMatch(role -> "ROLE_PLATFORM_ADMIN".equals(role.getRoleName()));
