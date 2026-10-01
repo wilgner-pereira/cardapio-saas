@@ -4,18 +4,18 @@ This file extends the repository root `AGENTS.md`.
 
 All root rules remain mandatory.
 
-This file governs:
+It governs:
 
 - backend source code;
 - Spring Security;
 - persistence;
 - database migrations;
 - storage integration;
+- backend configuration;
 - backend tests;
 - resources under `src`.
 
-Do not duplicate root-level project or deployment documentation here unless it
-directly affects backend implementation.
+Do not duplicate general repository or frontend rules here.
 
 ---
 
@@ -32,14 +32,14 @@ Current backend stack:
 - Flyway
 - PostgreSQL
 - H2 in PostgreSQL compatibility mode for development/tests
-- Spring WebClient for Supabase Storage
+- Spring WebClient
 - Maven
 
 Do not replace these technologies without explicit architectural justification.
 
 Do not add Lombok or MapStruct merely to reduce boilerplate.
 
-Prefer the existing Spring/JPA patterns already used by the application.
+Prefer the existing Spring/JPA patterns.
 
 ---
 
@@ -49,13 +49,17 @@ Backend source root:
 
 ```text
 src/main/java/com/wilgner/cardapio/
-
-
+```
 
 Application entry point:
-CardapioApplication.java
 
-Current main packages:
+```text
+CardapioApplication.java
+```
+
+Main packages:
+
+```text
 config/
 controller/
 exception/
@@ -64,85 +68,155 @@ repository/
 security/
 service/
 util/
+```
 
 Resources:
+
+```text
 src/main/resources/
+```
 
 Tests:
-src/test/java/
 
-Package Responsibilities
-config
-Application and framework configuration.
-Current important classes include:
+```text
+src/test/java/
+```
+
+---
+
+# Package Responsibilities
+
+## config
+
+Framework/application configuration.
+
+Important current classes include:
+
+```text
 BootstrapAdminRunner
 MultipartConfig
 OpenApiConfig
 SecurityConfig
 WebClientConfig
+```
 
-Do not place normal business rules in configuration classes.
-controller
+Do not place normal domain/business behavior in configuration classes.
+
+---
+
+## controller
+
 HTTP boundary.
+
 Controllers should:
-- parse HTTP input;
-- receive validated DTOs;
+
+- receive HTTP input;
+- validate DTO input;
 - enforce route-level authorization where appropriate;
 - delegate business behavior;
 - return appropriate HTTP responses.
-Controllers should NOT:
+
+Controllers should not:
+
 - own business rules;
-- implement tenant authorization manually when a service/helper already exists;
-- perform direct Supabase operations;
-- contain persistence logic;
-- expose JPA entities directly.
-service
+- perform persistence logic directly;
+- implement independent tenant authorization;
+- call Supabase directly;
+- expose JPA entities as API contracts.
+
+---
+
+## service
+
 Business/domain behavior.
+
 Services should:
+
 - enforce business rules;
-- resolve tenant context where appropriate;
+- enforce tenant rules;
 - coordinate persistence;
-- manage transactions;
+- define transaction boundaries;
 - preserve concurrency guarantees;
-- coordinate external storage when required.
-Business rules belong here rather than in controllers.
-repository
+- coordinate storage behavior where required.
+
+Business logic belongs in services rather than controllers.
+
+---
+
+## repository
+
 Persistence queries.
+
 Repositories should:
-- use Spring Data JPA patterns already present;
-- encode tenant-scoped lookups when ownership matters;
-- support locking where required;
-- avoid generic queries that accidentally bypass tenant boundaries.
-model/dto
+
+- use existing Spring Data patterns;
+- preserve tenant-scoped queries;
+- support locks where required;
+- preserve deterministic ordering where required.
+
+Do not use generic lookups when tenant ownership is part of authorization.
+
+---
+
+## model/dto
+
 External API contracts.
+
 DTOs should:
+
 - define request/response shapes;
 - validate external input;
 - avoid exposing persistence internals.
-Use Jakarta Bean Validation for user-controlled request data.
-model/entity
+
+Use Jakarta Bean Validation for user-controlled input.
+
+---
+
+## model/entity
+
 Persistence entities.
+
 Entities represent database state.
-Do not expose entities directly as API response models.
+
+Do not expose them directly through controllers.
+
 Use DTOs and existing mappers.
-security
+
+---
+
+## security
+
 Authentication and authorization infrastructure.
+
 This package owns behavior such as:
-- JWT handling;
+
+- JWT validation;
 - authentication filters;
 - refresh sessions;
-- cookie handling;
-- request rate limiting;
+- cookies;
+- rate limiting;
 - audit logging;
-- authentication/authorization error handling;
-- CSRF support.
-Security code is not boilerplate.
-Understand its invariants before modifying it.
-Controller Map
-Controllers currently live in:
+- authentication failures;
+- authorization failures;
+- SPA CSRF support.
+
+Security code is intentional application behavior.
+
+Do not treat it as disposable framework boilerplate.
+
+---
+
+# Controller Map
+
+Controllers live in:
+
+```text
 src/main/java/com/wilgner/cardapio/controller/
+```
 
 Current controllers:
+
+```text
 AdminCategoriaController
 AdminEstabelecimentoController
 AdminProdutoController
@@ -153,16 +227,29 @@ PublicProdutoController
 PublicStorageController
 SetupController
 SupabaseStorageController
+```
 
-Use the map below before creating another controller.
-AuthenticationController
+Search these before creating a new controller.
+
+---
+
+# AuthenticationController
+
 File:
+
+```text
 controller/AuthenticationController.java
+```
 
 Base route:
-/auth
 
-Current endpoints include:
+```text
+/auth
+```
+
+Current operations include:
+
+```text
 POST /auth/login
 POST /auth/refresh
 POST /auth/logout
@@ -170,41 +257,75 @@ POST /auth/logout
 GET /auth/validate
 GET /auth/session
 GET /auth/csrf
+```
 
 Authentication uses HttpOnly cookies.
+
 Do not return access or refresh JWTs in JSON responses.
-PublicProdutoController
+
+---
+
+# PublicProdutoController
+
 File:
+
+```text
 controller/PublicProdutoController.java
+```
 
 Base route:
+
+```text
 /public/{slug}/cardapio
+```
 
 Current endpoints:
+
+```text
 GET /public/{slug}/cardapio
 GET /public/{slug}/cardapio/info
+```
 
 Business implementation:
-service/PublicProdutoServiceImpl.java
 
-These routes power the public restaurant menu.
-They do not require an authenticated tenant session.
-Public behavior must still respect:
+```text
+service/PublicProdutoServiceImpl.java
+```
+
+These routes power anonymous public menus.
+
+Public behavior must still preserve:
+
 - establishment activation;
 - safe field exposure;
 - rate limiting;
-- deterministic product/category ordering.
-AdminProdutoController
+- product/category ordering.
+
+---
+
+# AdminProdutoController
+
 File:
+
+```text
 controller/AdminProdutoController.java
+```
 
 Base route:
+
+```text
 /painel/produtos
+```
 
 Required role:
+
+```text
 ROLE_TENANT_ADMIN
+```
 
 Current operations include:
+
+```text
 POST   /painel/produtos
 PUT    /painel/produtos/{id}
 PATCH  /painel/produtos/{id}/status
@@ -212,134 +333,264 @@ PATCH  /painel/produtos/{id}/ordem
 DELETE /painel/produtos/{id}
 GET    /painel/produtos/{id}
 GET    /painel/produtos
+```
 
 Business implementation:
+
+```text
 service/AdminProdutoServiceImpl.java
+```
 
-Product authorization must remain tenant-scoped.
-Never use a browser-provided tenant ID as proof of ownership.
-AdminCategoriaController
+Product access must remain tenant-scoped.
+
+Never use a frontend-supplied tenant ID as authorization.
+
+---
+
+# AdminCategoriaController
+
 File:
+
+```text
 controller/AdminCategoriaController.java
+```
 
 Base route:
+
+```text
 /painel/categorias
+```
 
 Required role:
+
+```text
 ROLE_TENANT_ADMIN
+```
 
-Current operation:
+Current ordering route:
+
+```text
 PATCH /painel/categorias/ordem
+```
 
-Category ordering is tied to tenant product ordering.
-The existing concurrency behavior must be preserved.
-EstabelecimentoController
+Category ordering is persisted backend state.
+
+Preserve concurrency safety.
+
+---
+
+# EstabelecimentoController
+
 File:
+
+```text
 controller/EstabelecimentoController.java
+```
 
 Base route:
+
+```text
 /painel/estabelecimento
+```
 
 Required role:
+
+```text
 ROLE_TENANT_ADMIN
+```
 
 Current operations include:
+
+```text
 GET /painel/estabelecimento
 PUT /painel/estabelecimento
 PUT /painel/estabelecimento/logo
 PUT /painel/estabelecimento/tema
+```
 
 Business implementation:
-service/EstabelecimentoServiceImpl.java
 
-These endpoints operate on the authenticated tenant's establishment.
-Do not add an arbitrary estabelecimentoId parameter to tenant endpoints as
-authorization.
-AdminEstabelecimentoController
+```text
+service/EstabelecimentoServiceImpl.java
+```
+
+These operations apply to the authenticated tenant's establishment.
+
+Do not add an arbitrary `estabelecimentoId` parameter to tenant routes as authorization.
+
+---
+
+# AdminEstabelecimentoController
+
 File:
+
+```text
 controller/AdminEstabelecimentoController.java
+```
 
 Base route:
+
+```text
 /plataforma/estabelecimentos
+```
 
 Required role:
-ROLE_PLATFORM_ADMIN
 
-Current operations include:
+```text
+ROLE_PLATFORM_ADMIN
+```
+
+Current operations:
+
+```text
 POST   /plataforma/estabelecimentos
 GET    /plataforma/estabelecimentos
 GET    /plataforma/estabelecimentos/{id}
 PATCH  /plataforma/estabelecimentos/{id}/ativar
 PATCH  /plataforma/estabelecimentos/{id}/desativar
 DELETE /plataforma/estabelecimentos/{id}
+```
 
 Business implementation:
+
+```text
 service/AdminEstabelecimentoServiceImpl.java
+```
 
-These are platform-level operations and must not be exposed to tenant
-administrators.
-PlatformAdminController
+These operations are platform-level.
+
+Do not expose them to tenant administrators.
+
+---
+
+# PlatformAdminController
+
 File:
+
+```text
 controller/PlatformAdminController.java
+```
 
 Base route:
+
+```text
 /plataforma/admins
+```
 
 Required role:
+
+```text
 ROLE_PLATFORM_ADMIN
+```
 
-Current main operation:
+Current operation:
+
+```text
 POST /plataforma/admins
+```
 
-Do not allow tenant administration endpoints to grant platform roles.
-SupabaseStorageController
+Do not allow tenant routes to grant `ROLE_PLATFORM_ADMIN`.
+
+---
+
+# SupabaseStorageController
+
 File:
+
+```text
 controller/SupabaseStorageController.java
+```
 
 Base route:
+
+```text
 /painel/storage
+```
 
 Required role:
-ROLE_TENANT_ADMIN
 
-Current responsibilities include:
+```text
+ROLE_TENANT_ADMIN
+```
+
+Responsibilities include:
+
 - authenticated tenant image upload;
-- unused uploaded image cleanup.
-Storage operations MUST use the existing storage service chain.
-Do not upload directly to Supabase from the controller.
-PublicStorageController
+- unused uploaded-image cleanup.
+
+Storage operations must use the existing storage service chain.
+
+Do not call Supabase directly from this controller.
+
+---
+
+# PublicStorageController
+
 File:
+
+```text
 controller/PublicStorageController.java
+```
 
 Base route:
+
+```text
 /public/storage
+```
 
-Current public resource route:
+Current route:
+
+```text
 GET /public/storage/{fileName}
+```
 
-This provides controlled access to managed storage objects.
-Do not turn this endpoint into a generic proxy for arbitrary URLs.
-SetupController
+This provides controlled access to managed objects.
+
+Do not turn this route into an arbitrary URL proxy.
+
+---
+
+# SetupController
+
 File:
+
+```text
 controller/SetupController.java
+```
 
 Route:
-POST /setup/admin
 
-This is exceptional bootstrap infrastructure.
-It is not a public registration feature.
+```text
+POST /setup/admin
+```
+
+This is exceptional initial bootstrap infrastructure.
+
+It is not normal public registration.
+
 It must remain:
+
 - disabled by default;
 - protected by a strong setup token when enabled;
 - protected by CSRF;
-- concurrency safe;
+- concurrency-safe;
 - unable to create multiple first platform administrators.
-Do not weaken setup security for development convenience.
-Service Map
-Services currently live in:
-src/main/java/com/wilgner/cardapio/service/
 
-Current important services:
+Do not weaken setup security for convenience.
+
+---
+
+# Service Map
+
+Services live in:
+
+```text
+src/main/java/com/wilgner/cardapio/service/
+```
+
+Current important services include:
+
+```text
 AdminEstabelecimentoServiceImpl
 AdminProdutoServiceImpl
 CustomUserDetailsService
@@ -351,20 +602,31 @@ StorageImageLifecycle
 StorageQuotaService
 SupabaseStorageService
 TenantStorageService
+```
 
-AdminProdutoServiceImpl
+---
+
+# AdminProdutoServiceImpl
+
 File:
-service/AdminProdutoServiceImpl.java
 
-Owns tenant product behavior such as:
+```text
+service/AdminProdutoServiceImpl.java
+```
+
+Responsibilities include:
+
 - product creation;
 - product editing;
 - product deletion;
-- status changes;
+- product status changes;
 - tenant product listing;
 - product ordering;
 - category ordering.
-Important methods currently include concepts equivalent to:
+
+Current business operations include concepts such as:
+
+```text
 criarProduto
 atualizarProduto
 deleteProduto
@@ -373,295 +635,504 @@ pesquisarProdutoPorId
 listarProdutoDinamico
 atualizarOrdem
 trocarOrdemCategorias
+```
 
-Product and category ordering are separate concepts.
-Do not collapse them into one ordering field.
+Product order and category order are separate concepts.
+
+Do not collapse them.
+
 Preserve:
+
 - deterministic ordering;
 - tenant isolation;
-- transaction boundaries;
+- transactions;
 - concurrency safety.
-EstabelecimentoServiceImpl
-File:
-service/EstabelecimentoServiceImpl.java
 
-Owns the authenticated tenant establishment.
-Current behavior includes:
+---
+
+# EstabelecimentoServiceImpl
+
+File:
+
+```text
+service/EstabelecimentoServiceImpl.java
+```
+
+Responsibilities include:
+
+```text
 obterMeuEstabelecimento
 atualizarMeuEstabelecimento
 atualizarLogo
 atualizarTema
+```
 
 Tenant identity must come from authenticated server-side context.
-AdminEstabelecimentoServiceImpl
-File:
-service/AdminEstabelecimentoServiceImpl.java
 
-Owns platform-level establishment/customer behavior.
-Current responsibilities include:
+---
+
+# AdminEstabelecimentoServiceImpl
+
+File:
+
+```text
+service/AdminEstabelecimentoServiceImpl.java
+```
+
+Responsibilities include:
+
 - creating establishments;
 - listing establishments;
-- reading establishment details;
+- loading establishment details;
 - activating establishments;
 - deactivating establishments;
 - deleting establishments;
 - creating the first platform administrator;
 - creating additional platform administrators.
-Keep platform operations explicitly separate from tenant operations.
-PublicProdutoServiceImpl
-File:
-service/PublicProdutoServiceImpl.java
 
-Owns public menu access.
-Current responsibilities include:
+Keep platform-level operations separate from tenant operations.
+
+---
+
+# PublicProdutoServiceImpl
+
+File:
+
+```text
+service/PublicProdutoServiceImpl.java
+```
+
+Responsibilities include:
+
+```text
 listarProdutoDinamico
 obterInfoEstabelecimento
+```
 
-Public establishment lookup uses the unique establishment:
+Public establishment lookup uses the unique:
+
+```text
 slug
+```
 
-CustomUserDetailsService
+---
+
+# CustomUserDetailsService
+
 File:
+
+```text
 service/CustomUserDetailsService.java
+```
 
 Loads application users for Spring Security.
-Before changing user loading or role resolution, inspect:
-- authentication tests;
-- inactive-establishment tests;
-- refresh-session tests.
-SecurityUtils
+
+Before changing user loading or role resolution, inspect security and inactive-tenant tests.
+
+---
+
+# SecurityUtils
+
 File:
+
+```text
 service/SecurityUtils.java
+```
 
-Provides authenticated security/domain context helpers.
-Reuse existing helpers instead of repeatedly reconstructing authentication or
-tenant lookup logic inside controllers.
-Tenant Isolation
-The authenticated user's Estabelecimento is the tenant boundary.
-A tenant must never read, modify or delete another tenant's protected data.
-Never trust a tenant/establishment ID supplied by the frontend as
-authorization.
-For tenant resources, preserve patterns equivalent to:
+Provides existing authenticated security/domain context helpers.
+
+Reuse existing helpers instead of reconstructing authentication and tenant lookup manually inside controllers.
+
+---
+
+# Tenant Isolation
+
+The authenticated user's `Estabelecimento` is the tenant boundary.
+
+Never trust a tenant/establishment ID supplied by the frontend as authorization.
+
+For tenant-owned resources, preserve patterns equivalent to:
+
+```java
 findByEstabelecimentoAndId(estabelecimento, id)
+```
 
-rather than generic:
+instead of generic:
+
+```java
 findById(id)
+```
 
 when ownership matters.
+
 Cross-tenant resources should not reveal their existence.
-Preserve not-found behavior for unauthorized tenant resource access where the
-current application uses it.
-Tenant isolation also applies to:
+
+Tenant isolation applies to:
+
 - products;
 - ordering;
+- establishment configuration;
 - image ownership;
 - storage quota;
-- storage deletion;
-- establishment configuration.
-Roles
+- image deletion.
+
+---
+
+# Roles
+
 Current roles:
+
+```text
 ROLE_PLATFORM_ADMIN
 ROLE_TENANT_ADMIN
+```
 
 Do not reintroduce historical roles such as:
+
+```text
 ROLE_ADMIN
 ROLE_USER
+```
 
 A platform administrator does not automatically have tenant permissions.
-A user must explicitly have the tenant role to access:
+
+Tenant access:
+
+```text
 /painel/**
+→ ROLE_TENANT_ADMIN
+```
 
-A user must explicitly have the platform role to access:
+Platform access:
+
+```text
 /plataforma/**
+→ ROLE_PLATFORM_ADMIN
+```
 
-Preserve method-level authorization already used by controllers.
-Do not rely only on frontend route protection.
-Authentication Architecture
+Preserve backend authorization regardless of frontend behavior.
+
+---
+
+# Authentication Architecture
+
 Authentication currently uses:
+
 - short-lived JWT access tokens;
 - JWT refresh tokens;
 - HttpOnly cookies;
-- persistent refresh sessions;
-- refresh session ID (sid);
-- rotating jti;
+- database-backed refresh sessions;
+- refresh session ID (`sid`);
+- rotating `jti`;
 - SHA-256 hash of the current refresh identifier in the database;
 - absolute refresh-session expiration;
-- refresh replay rejection.
-Do not replace this architecture with stateless refresh tokens.
-Do not store refresh JWTs directly in the database.
-Do not return JWTs in JSON.
-Do not make logout purely client-side.
-TokenService
-File:
-security/TokenService.java
+- replay rejection.
 
-Owns JWT creation and validation.
-Current behavior includes:
+Do not replace this with stateless refresh tokens.
+
+Do not store complete refresh JWTs in the database.
+
+Do not return JWTs in JSON.
+
+Do not make logout purely client-side.
+
+---
+
+# TokenService
+
+File:
+
+```text
+security/TokenService.java
+```
+
+Responsibilities include:
+
+```text
 generateAccessToken
 generateRefreshToken
 validateAccessToken
 validateRefreshToken
 verifyRefreshToken
+```
 
 Access and refresh tokens are different token types.
+
 Do not make them interchangeable.
+
 Do not move all authorization state into JWT claims.
-The database remains authoritative for relevant authorization state.
-TokenCookieService
+
+Persistent application state remains authoritative where required.
+
+---
+
+# TokenCookieService
+
 File:
+
+```text
 security/TokenCookieService.java
+```
 
 Owns authentication cookie creation/deletion.
-Reuse this service instead of duplicating cookie construction.
+
+Reuse this service rather than constructing auth cookies independently.
+
 Authentication cookies must remain:
+
 - HttpOnly;
 - Secure in production;
-- configured with the expected SameSite policy;
+- configured with the intended SameSite behavior;
 - bounded by token/session lifetime.
-Do not expose authentication cookies to JavaScript.
-RefreshSessionService
-File:
-security/RefreshSessionService.java
 
-Owns persistent refresh-session behavior.
+Do not expose authentication cookies to JavaScript.
+
+---
+
+# RefreshSessionService
+
+File:
+
+```text
+security/RefreshSessionService.java
+```
+
 Preserve these invariants:
+
 - multiple independent user sessions are allowed;
 - refresh rotates the identifier;
-- consumed refresh tokens cannot be replayed;
+- a consumed refresh token cannot be replayed;
 - only one concurrent refresh of the same token succeeds;
 - logout revokes the relevant server-side session;
 - revocation survives application restarts;
 - inactive tenants cannot refresh;
-- access and refresh tokens cannot be interchanged.
+- access and refresh token types cannot be interchanged.
+
 Read:
+
+```text
 RefreshSessionIntegrationTest
 RefreshSessionRestartTest
+```
 
 before modifying this subsystem.
-SecurityFilter
+
+---
+
+# SecurityFilter
+
 File:
+
+```text
 security/SecurityFilter.java
+```
 
-Handles access-token authentication integration with Spring Security.
+Integrates access-token authentication with Spring Security.
+
 Do not create a parallel authentication filter.
-Do not make token validation weaker to work around frontend issues.
-Spring Security Configuration
-Main configuration:
-config/SecurityConfig.java
 
-This file controls behavior such as:
+Do not weaken token validation to work around frontend issues.
+
+---
+
+# SecurityConfig
+
+File:
+
+```text
+config/SecurityConfig.java
+```
+
+Controls behavior including:
+
 - endpoint authorization;
-- authentication;
-- role boundaries;
+- authentication integration;
+- roles;
 - CORS;
 - CSRF;
-- session behavior;
 - security filters;
 - unauthorized responses;
 - forbidden responses;
 - health endpoint access.
-Important authorization boundaries:
+
+Important boundaries:
+
+```text
 /plataforma/**
 → ROLE_PLATFORM_ADMIN
 
 /painel/**
 → ROLE_TENANT_ADMIN
+```
 
 Do not make protected routes public to fix authentication problems.
-CSRF
+
+---
+
+# CSRF
+
 CSRF protection is intentional because authentication uses cookies.
-Current CSRF architecture includes:
+
+Current architecture includes:
+
+```text
 CookieCsrfTokenRepository
 SpaCsrfTokenRequestHandler
+```
 
 Frontend CSRF bootstrap:
+
+```text
 GET /auth/csrf
+```
 
-Preserve CSRF protection on mutable cookie-authenticated requests.
-This includes areas such as:
-- logout;
-- setup;
-- tenant mutations;
-- platform mutations where applicable.
+Preserve CSRF protection for mutable cookie-authenticated operations.
+
 Do not disable CSRF globally.
-Do not create a second independent CSRF mechanism.
-Read:
-SpaCsrfIntegrationTests
 
-before changing CSRF behavior.
-Rate Limiting
-Current rate-limit implementation:
+Do not create a second independent CSRF implementation.
+
+Read:
+
+```text
+SpaCsrfIntegrationTests
+```
+
+before changing this behavior.
+
+---
+
+# Rate Limiting
+
+Current implementation:
+
+```text
 security/RequestRateLimiter.java
 security/RequestRateLimitFilter.java
+```
 
-Important protected scopes include:
+Important scopes include:
+
 - login;
 - refresh;
 - setup;
 - public traffic.
-Do not create equivalent routes that bypass the existing filter.
-Do not remove limits merely to make development or tests easier.
-Do not trust forwarded headers as client identity unless trusted proxy behavior
-is explicitly configured and understood.
-Tenant Activation
+
+Do not create equivalent routes that bypass existing rate limiting.
+
+Do not remove rate limits merely to simplify tests or development.
+
+Do not trust forwarded headers as client identity unless trusted-proxy behavior is explicitly configured.
+
+---
+
+# Tenant Activation
+
 Tenant active/inactive state is authorization-sensitive.
-An inactive establishment must be prevented from normal tenant use even when
-an access token was issued before deactivation.
-Authorization state is intentionally reloaded from persistent state.
-Do not use JWT claims as the sole source of tenant active state.
-Validation
+
+An inactive tenant must be blocked from tenant use even when an access token was issued before deactivation.
+
+Authorization state is intentionally loaded from persistent state.
+
+Do not use JWT claims as the sole authority for tenant activation.
+
+---
+
+# Validation
+
 Use Jakarta Bean Validation for external request input.
+
 Do not rely only on frontend validation.
-Preserve length and format limits for fields such as:
-- username;
-- password;
-- email;
-- establishment name;
-- product name;
-- description;
-- category;
-- image URL;
-- phone;
+
+Preserve bounds and validation for:
+
+- usernames;
+- passwords;
+- email addresses;
+- establishment names;
+- product names;
+- descriptions;
+- categories;
+- image URLs;
+- phone numbers;
 - social URLs;
-- other establishment metadata.
-Avoid accepting unbounded strings.
-Frontend validation improves UX.
+- establishment metadata.
+
+Avoid unbounded strings.
+
 Backend validation remains authoritative.
-Monetary Values
+
+---
+
+# Monetary Values
+
 Product prices use:
+
+```java
 BigDecimal
+```
 
 Never replace monetary values with:
+
+```text
 float
 double
+```
 
 Preserve database precision and scale.
-JPA
+
+---
+
+# JPA
+
 The project intentionally uses:
+
+```text
 spring.jpa.open-in-view=false
 spring.jpa.hibernate.ddl-auto=validate
+```
 
 Do not change these settings to hide persistence problems.
-Do not enable Open Session in View to solve lazy-loading issues.
+
+Do not globally enable Open Session in View.
+
 Fetch required information explicitly.
-Watch for N+1 queries when changing relationships or DTO mapping.
-Entities
+
+Watch for N+1 queries when modifying relationships and DTO mapping.
+
+---
+
+# Entities
+
 Entities live in:
+
+```text
 src/main/java/com/wilgner/cardapio/model/entity/
+```
 
 Current entities include:
+
+```text
 CardapioTema
 Estabelecimento
 Produto
 RefreshSession
 Role
 Usuario
+```
 
-Estabelecimento
+---
+
+# Estabelecimento
+
 File:
-model/entity/Estabelecimento.java
 
-Important domain concepts include:
+```text
+model/entity/Estabelecimento.java
+```
+
+Important concepts include:
+
 - name;
 - unique public slug;
 - description;
@@ -674,22 +1145,33 @@ Important domain concepts include:
 - logo URL;
 - hero image URL;
 - menu theme;
-- product image-shape configuration;
+- product image-shape setting;
 - active state;
 - timestamps.
-The public menu uses the establishment:
-slug
 
-Do not use internal database IDs in public menu URLs when the existing slug
-model already applies.
-Produto
+The public menu uses:
+
+```text
+slug
+```
+
+Do not replace the public slug with an internal database ID.
+
+---
+
+# Produto
+
 File:
+
+```text
 model/entity/Produto.java
+```
 
 Important concepts include:
+
 - name;
 - description;
-- BigDecimal price;
+- `BigDecimal` price;
 - active state;
 - category;
 - category order;
@@ -697,242 +1179,424 @@ Important concepts include:
 - image URL;
 - establishment ownership;
 - associated user.
+
 Product order and category order are separate.
-Usuario
+
+---
+
+# Usuario
+
 File:
+
+```text
 model/entity/Usuario.java
+```
 
 Important relationships include:
+
 - establishment;
 - roles;
 - refresh sessions.
-Never expose encoded passwords in API responses.
-Role
-File:
-model/entity/Role.java
 
-Current supported application roles are:
+Never expose password data through API responses.
+
+---
+
+# Role
+
+File:
+
+```text
+model/entity/Role.java
+```
+
+Supported application roles:
+
+```text
 ROLE_PLATFORM_ADMIN
 ROLE_TENANT_ADMIN
+```
 
-RefreshSession
+---
+
+# RefreshSession
+
 File:
+
+```text
 model/entity/RefreshSession.java
+```
 
 Persists server-side refresh-session state.
-Do not remove persistent refresh state in favor of purely stateless JWT refresh
-behavior.
-DTOs
+
+Do not replace persistent refresh sessions with fully stateless refresh JWT behavior.
+
+---
+
+# DTOs
+
 DTOs live under:
+
+```text
 src/main/java/com/wilgner/cardapio/model/dto/
+```
 
 Current groups include:
+
+```text
 auth/
 error/
 estabelecimento/
 product/
+```
 
-Important mapping classes include:
+Important mappers include:
+
+```text
 EstabelecimentoMapper
 ProdutoMapper
+```
 
-Controllers should communicate through DTOs rather than JPA entities.
-Use existing DTOs/mappers before creating parallel versions.
-Repositories
+Controllers should use DTOs instead of exposing JPA entities.
+
+Reuse existing DTOs/mappers before creating parallel versions.
+
+---
+
+# Repositories
+
 Repositories live in:
+
+```text
 src/main/java/com/wilgner/cardapio/repository/
+```
 
 Current repositories:
+
+```text
 EstabelecimentoRepository
 ProdutoRepository
 RefreshSessionRepository
 RoleRepository
 UsuarioRepository
+```
 
-Before adding another repository method:
-1. search for an existing equivalent query;
+Before adding a repository query:
+
+1. search for an equivalent query;
 2. determine whether tenant scoping is required;
-3. determine whether a lock is required;
+3. determine whether locking is required;
 4. preserve expected ordering;
-5. verify relevant tests.
-Do not use generic entity lookup when tenant ownership is part of
-authorization.
-Transactions and Locks
+5. inspect related tests.
+
+Do not use generic `findById()` where tenant ownership is part of authorization.
+
+---
+
+# Transactions and Locks
+
 Existing locks are intentional.
+
 Important concurrent flows include:
+
 - product ordering;
 - category ordering;
 - storage quota;
 - image lifecycle;
 - setup/bootstrap;
-- refresh-token rotation.
+- refresh rotation.
+
 Do not remove:
+
 - transaction boundaries;
 - pessimistic locks;
-- FOR UPDATE;
-- tenant row locks;
-without understanding the associated invariant and tests.
-A shorter implementation is not necessarily equivalent.
-Product Ordering
+- `FOR UPDATE`;
+- tenant row locking;
+
+without understanding the invariant and relevant tests.
+
+A simpler-looking implementation is not necessarily equivalent.
+
+---
+
+# Product and Category Ordering
+
 Product order and category order are independent.
+
 Preserve:
-- product position inside a category;
+
+- product position within a category;
 - category position;
 - deterministic ordering;
 - tenant isolation;
 - concurrent update safety.
-Before changing ordering behavior, read:
+
+Before changing ordering, read:
+
+```text
 CategoryOrderIntegrationTest
 CategoryOrderMigrationTest
+```
 
-and any related product ordering tests.
-Storage Architecture
+and other related ordering tests.
+
+---
+
+# Storage Architecture
+
 Storage changes require extra care.
+
 Current storage flow includes:
+
+```text
 TenantStorageService
 StorageQuotaService
 StorageImageLifecycle
 SupabaseStorageService
 ImageUploadProfile
+```
 
 Do not bypass these layers.
+
 The authenticated tenant must come from trusted server-side context.
-TenantStorageService
+
+---
+
+# TenantStorageService
+
 File:
+
+```text
 service/TenantStorageService.java
+```
 
 Coordinates authenticated tenant uploads.
+
 Conceptual flow:
+
+```text
 authenticated tenant
         ↓
-backend image validation
+backend file validation
         ↓
-storage key generation
+application-controlled object key
         ↓
 persistent quota reservation
         ↓
 remote Supabase upload
         ↓
 persistent storage state update
+```
 
 Do not create a second upload flow.
-ImageUploadProfile
+
+---
+
+# ImageUploadProfile
+
 File:
+
+```text
 service/ImageUploadProfile.java
+```
 
-Defines upload/profile constraints used by the existing storage flow.
-Reuse this behavior rather than hardcoding independent limits in controllers.
-StorageQuotaService
+Defines upload constraints/profiles used by the storage flow.
+
+Reuse this behavior instead of hardcoding independent upload limits in controllers.
+
+---
+
+# StorageQuotaService
+
 File:
-service/StorageQuotaService.java
 
-Quota accounting is persistent.
+```text
+service/StorageQuotaService.java
+```
+
+Storage accounting is persistent.
+
 Existing state concepts include:
+
+```text
 RESERVED
 STORED
 UNCERTAIN
 DELETED
 LEGACY
+```
 
-These states represent real failure scenarios.
+These states represent real remote-failure scenarios.
+
 Do not simplify them into a boolean.
-Do not release quota simply because:
+
+Do not release quota solely because:
+
 - a controller request failed;
-- a database reference disappeared;
-- the remote response timed out.
-Remote state may be ambiguous.
-Existing tenants that require storage inventory reconciliation must not silently
-bypass the existing storage rules.
-Remote Upload Failures
+- a local database reference disappeared;
+- a remote response timed out.
+
+Remote object state may be ambiguous.
+
+---
+
+# Remote Upload Failures
+
 There is no distributed transaction between:
+
+```text
 PostgreSQL
+```
 
 and:
-Supabase Storage
 
-A timeout or connection failure may happen after the provider already accepted
-the object.
+```text
+Supabase Storage
+```
+
+A timeout may occur after Supabase has already accepted an object.
+
 Preserve conservative accounting.
-Do not mark storage as free merely because the client received an error.
-Before changing this behavior, read:
+
+Do not mark storage as free simply because the client received an error.
+
+Read:
+
+```text
 StorageQuotaIntegrationTest
 TenantStorageFailureTest
+```
 
-StorageImageLifecycle
+before changing remote-failure behavior.
+
+---
+
+# StorageImageLifecycle
+
 File:
-service/StorageImageLifecycle.java
 
-Responsible for image lifecycle operations such as:
+```text
+service/StorageImageLifecycle.java
+```
+
+Responsibilities include:
+
 - unused image cleanup;
-- replacement tracking;
+- image replacement tracking;
 - safe remote deletion;
 - durable deletion queue;
-- retry after failures/restarts;
+- retries after failure/restart;
 - shared-reference protection;
 - external-image protection.
-Important rule:
-Do not delete the previous image before the new database reference has
-successfully committed.
-Do not delete an object still referenced elsewhere.
-Do not treat arbitrary external URLs as managed Supabase objects.
-SupabaseStorageService
-File:
-service/SupabaseStorageService.java
 
-This is the low-level Supabase Storage integration.
-Current responsibilities include:
+Important invariant:
+
+Do not delete the previous image before the new database reference successfully commits.
+
+Do not delete an object still referenced elsewhere.
+
+Do not treat arbitrary external URLs as managed Supabase objects.
+
+---
+
+# SupabaseStorageService
+
+File:
+
+```text
+service/SupabaseStorageService.java
+```
+
+Low-level Supabase Storage integration.
+
+Responsibilities include:
+
 - backend file validation;
-- managed object key generation/parsing;
+- managed object key parsing;
 - public URL generation;
-- object upload;
-- object deletion;
-- object download;
+- upload;
+- deletion;
+- download;
 - Supabase endpoint validation;
 - bucket validation;
 - redirect rejection;
 - timeout behavior;
 - sanitized provider errors.
-New business code should not communicate directly with Supabase.
-Go through the existing storage services.
-Supabase WebClient Security
+
+Business/domain code should not communicate with Supabase directly.
+
+Use the existing storage services.
+
+---
+
+# Supabase WebClient Security
+
 Supabase communication must remain constrained.
+
 Preserve:
+
 - redirect rejection;
 - endpoint validation;
 - bucket validation;
 - object-key validation;
 - operation timeouts;
 - sanitized error handling.
+
 Do not enable automatic redirects casually.
+
 Do not forward arbitrary user-supplied URLs through WebClient.
-Do not put raw provider response bodies or credentials into exceptions or logs.
-Upload Validation
-Backend validation is authoritative.
+
+Do not expose raw provider responses or credentials through logs/errors.
+
+---
+
+# Upload Validation
+
+Backend image validation is authoritative.
+
 Preserve validation of:
+
 - maximum size;
 - MIME type;
 - magic bytes;
-- allowed image format;
+- allowed image formats;
 - application-controlled object names.
-Do not trust filename extensions.
-Do not use raw uploaded filenames as storage object identity.
-Frontend optimization or validation does not replace backend validation.
-Database Configuration
-Backend resource configuration lives under:
-src/main/resources/
 
-Current configuration files include:
+Do not trust filename extensions.
+
+Do not use raw user filenames as storage identity.
+
+Frontend optimization does not replace backend validation.
+
+---
+
+# Configuration
+
+Backend configuration lives under:
+
+```text
+src/main/resources/
+```
+
+Current files include:
+
+```text
 application.properties
 application-dev.properties
 application-local-postgres.properties
 application-prod.properties
 application-supabase.properties
+```
 
-Production currently uses:
+Current production deployment uses:
+
+```text
 SPRING_PROFILES_ACTIVE=supabase
+```
 
-Important production configuration comes from environment variables.
-Examples include:
+Important production configuration includes:
+
+```text
 DATABASE_URL
 DATABASE_USERNAME
 DATABASE_PASSWORD
@@ -947,26 +1611,44 @@ CORS_ALLOWED_ORIGINS
 SUPABASE_URL
 SUPABASE_KEY
 SUPABASE_BUCKET
+```
 
-Do not introduce production fallback credentials.
-Required security-sensitive production configuration should fail closed when
-missing.
-Production Logging
-Production/Supabase profiles intentionally avoid sensitive noisy logging.
+Never introduce fallback production credentials.
+
+Required security-sensitive configuration should fail closed when missing.
+
+---
+
+# Production Logging
+
+Production/Supabase profiles intentionally avoid sensitive/noisy logging.
+
 Do not enable by default:
+
 - SQL value logging;
 - Hibernate bind-value logging;
 - WebClient wire logging;
 - raw HTTP body logging;
-- authentication cookie logging;
+- authentication-cookie logging;
 - token logging.
-Production debugging must not expose secrets.
-Flyway
-All production schema evolution goes through Flyway.
-Migration directory:
-src/main/resources/db/migration/
 
-Current migration history in this repository includes:
+Production debugging must not expose secrets.
+
+---
+
+# Flyway
+
+All production schema evolution goes through Flyway.
+
+Migration directory:
+
+```text
+src/main/resources/db/migration/
+```
+
+Current repository migrations include:
+
+```text
 V1__create_initial_schema.sql
 V2__assign_role_user_to_existing_users.sql
 V3__create_estabelecimento_table.sql
@@ -983,28 +1665,49 @@ V15__add_establishment_hero_image.sql
 V16__queue_replaced_image_deletions.sql
 V17__add_product_image_shape.sql
 V18__add_establishment_social_links.sql
+```
 
 Migration history is immutable.
-NEVER edit an already released migration.
-Do not renumber migrations.
-Do not recreate missing historical version numbers merely to make numbering
-continuous.
-New schema changes require a new migration with the next appropriate version.
-Migration changes must preserve production data.
-Avoid destructive operations unless explicitly required and carefully planned.
-Add migration tests for non-trivial data transformations.
-Historical Seed Data
-Historical migrations may contain old demonstration/setup data.
-Do not rewrite historical migrations to clean them up.
-For example, insecure historical credentials are handled by later migrations
-rather than by modifying the original historical migration.
-Changing an already executed migration can break Flyway checksum compatibility
-with production databases.
-Exception Handling
-Exception package:
-src/main/java/com/wilgner/cardapio/exception/
 
-Current exceptions include:
+Never edit an already released migration.
+
+Do not renumber migrations.
+
+Do not create fake historical migrations merely to fill missing version numbers.
+
+New schema changes require a new migration.
+
+Migration changes must preserve production data.
+
+Avoid destructive operations unless explicitly required and carefully planned.
+
+Add migration tests for non-trivial data transformations.
+
+---
+
+# Historical Seed Data
+
+Historical migrations may contain old demo/setup data.
+
+Do not rewrite historical migrations to clean them up.
+
+Later migrations may intentionally correct historical state.
+
+Changing an executed migration can break Flyway checksum compatibility with existing databases.
+
+---
+
+# Exception Handling
+
+Exception package:
+
+```text
+src/main/java/com/wilgner/cardapio/exception/
+```
+
+Current classes include:
+
+```text
 ApiExceptionHandler
 BusinessException
 ConflictException
@@ -1012,100 +1715,173 @@ ExternalServiceException
 ResourceNotFoundException
 StorageQuotaException
 StorageWriteRejectedException
+```
 
 Use the centralized exception handler.
-Add a new domain exception only when an existing one does not represent the
-condition cleanly.
-Do not create exceptions simply to rename ordinary validation failures.
-API Errors
-Preserve the existing centralized:
+
+Add a new domain exception only when existing exceptions do not represent the condition cleanly.
+
+Do not create exceptions merely to rename ordinary validation behavior.
+
+---
+
+# API Errors
+
+Preserve the centralized:
+
+```text
 ApiErrorDTO
+```
 
-error response behavior.
+response behavior.
+
 Use appropriate HTTP status codes.
-Do not return:
-200 OK
 
-for application errors merely to simplify frontend handling.
+Do not return `200 OK` for application failures merely to simplify frontend handling.
+
 Do not expose:
+
 - stack traces;
 - SQL;
 - database internals;
-- raw Supabase provider responses;
+- raw Supabase response bodies;
 - credentials;
 - internal security details.
-Logging
+
+---
+
+# Logging
+
 Security/privacy logging has intentional safeguards.
-Reuse the existing:
+
+Reuse:
+
+```text
 LogSanitizer
+```
 
 where applicable.
-Security-sensitive audit behavior uses:
-SECURITY_AUDIT
 
-Do not log sensitive information.
-Avoid logging:
+Security-sensitive audit behavior uses:
+
+```text
+SECURITY_AUDIT
+```
+
+Do not log:
+
 - passwords;
-- emails when unnecessary;
 - authentication tokens;
 - JWTs;
 - cookies;
 - Authorization headers;
 - database passwords;
 - Supabase keys;
-- raw request URLs containing secrets;
+- secret query parameters;
 - raw SQL values;
-- full exception content that may expose sensitive provider data.
-Prefer internal IDs over unnecessary personal identifiers when logging.
-Health Endpoints
+- provider responses containing sensitive data.
+
+Prefer internal IDs over unnecessary personal identifiers.
+
+---
+
+# Health Endpoints
+
 Public health information must remain minimal.
-The production public health route is intended for simple liveness/status
-checking.
+
 Administrative health information must remain restricted.
-Do not expose:
+
+Do not expose publicly:
+
 - environment configuration;
 - secrets;
 - database credentials;
-- full actuator details;
+- detailed actuator data;
 - sensitive system internals.
-Do not expose all Actuator endpoints publicly.
-CORS
-Production browser origin is configured through:
-CORS_ALLOWED_ORIGINS
 
-Current production frontend uses:
+Do not expose all Actuator endpoints.
+
+---
+
+# CORS
+
+Production browser origin is configured through:
+
+```text
+CORS_ALLOWED_ORIGINS
+```
+
+Current production frontend:
+
+```text
 https://lunemenu.app
+```
 
 Credentialed CORS is required because authentication uses cookies.
-Do not replace the configured allowlist with:
+
+Do not replace the origin allowlist with:
+
+```text
 *
+```
 
 when credentials are involved.
-Do not weaken CORS merely to hide an incorrect frontend API configuration.
-Public API vs Administrative API
-Keep these responsibilities distinct.
+
+Do not weaken CORS to hide an incorrect frontend configuration.
+
+---
+
+# API Responsibility Boundaries
+
+Keep these areas distinct:
+
 Public:
+
+```text
 /public/**
+```
 
 Tenant administration:
+
+```text
 /painel/**
+```
 
 Platform administration:
+
+```text
 /plataforma/**
+```
 
 Authentication:
+
+```text
 /auth/**
+```
 
 Exceptional bootstrap:
+
+```text
 /setup/**
+```
 
-Do not place authenticated tenant behavior under public routes.
-Do not expose platform operations under tenant routes.
-Backend Test Map
-Backend tests live under:
+Do not place tenant functionality under public routes.
+
+Do not expose platform functionality through tenant routes.
+
+---
+
+# Backend Tests
+
+Tests live under:
+
+```text
 src/test/java/
+```
 
-Important suites currently include:
+Important suites include:
+
+```text
 CardapioApplicationTests
 DownloadPerformanceTest
 EstabelecimentoTests
@@ -1139,62 +1915,114 @@ StorageQuotaIntegrationTest
 StorageRedirectTest
 SupabaseStorageServiceTest
 TenantStorageFailureTest
+```
 
 Security tests are part of the security model.
-Do not weaken tests merely to make a new implementation pass.
-Which Tests to Read First
-When changing authentication:
+
+Do not weaken assertions merely to accommodate a new implementation.
+
+---
+
+# Which Tests to Read First
+
+Authentication:
+
+```text
 SecurityIntegrationTests
 RefreshSessionIntegrationTest
 RefreshSessionRestartTest
+```
 
-When changing CSRF:
+CSRF:
+
+```text
 SpaCsrfIntegrationTests
+```
 
-When changing tenant activation:
+Tenant activation:
+
+```text
 InactiveEstablishmentSecurityIntegrationTest
+```
 
-When changing setup/bootstrap:
+Setup/bootstrap:
+
+```text
 SetupSecurityIntegrationTest
 BootstrapAdminRunnerIntegrationTest
+```
 
-When changing rate limiting:
+Rate limiting:
+
+```text
 RequestRateLimitIntegrationTest
 RequestRateLimiterTest
+```
 
-When changing storage/quota:
+Storage/quota:
+
+```text
 StorageQuotaIntegrationTest
 TenantStorageFailureTest
 SupabaseStorageServiceTest
 StorageRedirectTest
+```
 
-When changing image replacement:
+Image replacement:
+
+```text
 ImageReplacementIntegrationTest
 HeroImageIntegrationTest
+```
 
-When changing category ordering:
+Category ordering:
+
+```text
 CategoryOrderIntegrationTest
 CategoryOrderMigrationTest
+```
 
-When changing platform administration:
+Platform administration:
+
+```text
 PlatformDashboardIntegrationTest
+```
 
-Running Backend Tests
-Full backend suite from repository root:
+---
+
+# Running Backend Tests
+
+From the repository root:
+
+```bash
 ./mvnw test
+```
 
-On Windows PowerShell/cmd:
+Windows:
+
+```text
 mvnw.cmd test
+```
 
-When Maven is already installed and correctly configured:
+Or with installed Maven:
+
+```bash
 mvn -B test
+```
 
 Run focused tests during development when useful.
-Before completing a security-sensitive or persistence-sensitive change, run the
-relevant integration tests and preferably the complete backend suite.
-Never claim tests passed unless they were actually executed successfully.
-Common Backend Change Map
+
+Before completing a security-sensitive, persistence-sensitive or storage-sensitive change, run the relevant integration tests and preferably the complete backend suite.
+
+Never claim tests passed unless they actually ran successfully.
+
+---
+
+# Common Backend Change Map
+
 Use this map before creating a new class.
+
+```text
 Login / refresh / logout / session
 → controller/AuthenticationController.java
 
@@ -1207,13 +2035,13 @@ Authentication cookies
 Refresh session persistence/rotation
 → security/RefreshSessionService.java
 
-Access-token filter
+Access-token authentication
 → security/SecurityFilter.java
 
 Authorization / CORS / CSRF
 → config/SecurityConfig.java
 
-CSRF SPA handling
+SPA CSRF handling
 → security/SpaCsrfTokenRequestHandler.java
 
 Rate limiting
@@ -1247,7 +2075,7 @@ Public menu
 → controller/PublicProdutoController.java
 → service/PublicProdutoServiceImpl.java
 
-Authenticated tenant upload endpoint
+Tenant upload endpoint
 → controller/SupabaseStorageController.java
 
 Public managed image delivery
@@ -1262,13 +2090,13 @@ Storage quota/inventory
 Image replacement/deletion lifecycle
 → service/StorageImageLifecycle.java
 
-Low-level Supabase Storage communication
+Low-level Supabase Storage integration
 → service/SupabaseStorageService.java
 
 Authenticated user loading
 → service/CustomUserDetailsService.java
 
-Authenticated domain context
+Authenticated tenant/domain context
 → service/SecurityUtils.java
 
 Database entities
@@ -1285,50 +2113,59 @@ Database schema
 
 Central API errors
 → exception/ApiExceptionHandler.java
+```
 
-If the requested behavior already belongs to one of these paths, extend that
-path rather than creating a parallel implementation.
-Final Backend Review
+If requested behavior already belongs to one of these paths, extend the existing path instead of creating a parallel implementation.
+
+---
+
+# Final Backend Review
+
 Before finishing a backend change, verify:
-- Did I read the root AGENTS.md?
+
+- Did I read the root `AGENTS.md`?
 - Did I search for an existing implementation?
 - Is tenant identity derived from authenticated context?
 - Is cross-tenant access still impossible?
 - Is platform/tenant role separation intact?
 - Are protected routes still protected?
-- Are JWTs still hidden from JSON/browser JavaScript?
+- Are JWTs still hidden from JSON and browser JavaScript?
 - Are authentication cookies still HttpOnly?
 - Is CSRF still enforced?
 - Is refresh replay protection intact?
 - Can inactive tenants still be blocked?
 - Is rate limiting preserved?
 - Are DTO validation limits preserved?
-- Are monetary values still BigDecimal?
-- Is open-in-view still disabled?
-- Is schema mode still validate?
+- Are monetary values still `BigDecimal`?
+- Is `open-in-view` still disabled?
+- Is schema mode still `validate`?
 - Did I avoid modifying historical Flyway migrations?
 - Are transaction and locking guarantees preserved?
-- Is product/category ordering still deterministic?
+- Is product/category ordering deterministic?
 - Did I use the existing storage architecture?
 - Can storage quota still not be bypassed?
 - Can image cleanup still not delete another tenant's object?
 - Are remote storage failures handled conservatively?
-- Are sensitive values absent from logs and API errors?
+- Are sensitive values absent from logs and errors?
 - Is PostgreSQL compatibility preserved?
 - Are relevant tests passing?
+
 If any answer is uncertain, investigate before finishing.
-Backend Principle
-Security mechanisms in this repository are intentional application behavior,
-not disposable framework boilerplate.
-Tenant isolation, authentication, refresh rotation, CSRF, rate limiting,
-database constraints, locking and storage lifecycle rules are production
-invariants.
+
+---
+
+# Backend Principle
+
+Security mechanisms in this repository are intentional application behavior, not disposable framework boilerplate.
+
+Tenant isolation, authentication, refresh rotation, CSRF, rate limiting, database constraints, locking and storage lifecycle rules are production invariants.
+
 Do not remove complexity before understanding why it exists.
+
 Investigate first.
+
 Reuse existing paths.
+
 Preserve invariants.
+
 Then make the smallest safe change.
-
-Esse agora fica **exclusivamente focado no backend dentro de `src`**: Controllers → Services → Security → JPA → Flyway → Storage → testes. Ele também corrige algumas partes do arquivo anterior que estavam com palavras grudadas, como `tenantestablishment`, `testsdev`, `modeldto`, `authenticationsecurity` etc.
-
-O próximo, quando você mandar, fazemos **somente o `frontend/AGENTS.md`**.
