@@ -48,6 +48,17 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
     };
   }, [heroFile, heroRemoved, establishment?.heroImageUrl, onHeroPreview]);
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   function selectHero(event) {
     const selected = event.target.files?.[0];
     if (!selected) return;
@@ -81,7 +92,13 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onClick={event => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
       <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="establishment-modal-title">
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={20} />

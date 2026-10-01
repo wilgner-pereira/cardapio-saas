@@ -85,4 +85,16 @@ describe("hero image editing", () => {
     expect(container.querySelector(".hero-waves")).toBeInTheDocument();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
+
+  it("closes when pressing Escape or clicking backdrop", () => {
+    const onClose = vi.fn();
+    const { container } = render(<EstablishmentEditorModal establishment={{ nome: "Pizzaria" }} onClose={onClose} />);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    const backdrop = container.querySelector(".modal-backdrop");
+    fireEvent.click(backdrop);
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
 });
