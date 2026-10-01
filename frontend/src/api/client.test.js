@@ -45,6 +45,18 @@ describe("authentication with HttpOnly cookies and metadata-only responses", () 
     vi.unstubAllGlobals();
   });
 
+  it.each([
+    ["https://project.supabase.co/storage/v1/object/public/menu/abc123", "https://project.supabase.co/storage/v1/object/public/menu/abc123"],
+    ["https://project.supabase.co/storage/v1/object/public/menu/caf%C3%A9%20do%20dia.webp", "https://project.supabase.co/storage/v1/object/public/menu/caf%C3%A9%20do%20dia.webp"],
+    ["https://images.example.com/cover%20photo.webp", "https://images.example.com/cover%20photo.webp"],
+    ["http://localhost:8080/public/storage/old.webp", "http://localhost:8080/public/storage/old.webp"],
+    ["/public/storage/old.webp", `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8080"}/public/storage/old.webp`],
+    ["", ""],
+    [null, ""]
+  ])("resolves image URL %s without proxying public Supabase images", (input, expected) => {
+    expect(api.resolveImageUrl(input)).toBe(expected);
+  });
+
   it('saves theme and image shape through the existing cookie and CSRF flow', async () => {
     await loginInMemory();
     fetchMock.mockImplementation(() => Promise.resolve(response({ tema: 'grafite', imagensRedondas: true })));

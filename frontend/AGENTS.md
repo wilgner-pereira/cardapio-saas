@@ -1290,7 +1290,9 @@ Existing helper:
 resolveImageUrl()
 ```
 
-Managed storage URLs may be translated to controlled backend paths such as:
+Public Supabase Storage URLs are rendered directly. The backend path below
+remains available for legacy links, but current frontend code must not generate
+it from a public Supabase URL:
 
 ```text
 /public/storage/{fileName}

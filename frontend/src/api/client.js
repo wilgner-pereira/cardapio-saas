@@ -62,11 +62,6 @@ function resolveImageUrl(url) {
     return `${API_BASE}${url}`;
   }
 
-  const supabaseFile = url.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)$/);
-  if (supabaseFile?.[1]) {
-    return `${API_BASE}/public/storage/${encodeURIComponent(decodeURIComponent(supabaseFile[1]))}`;
-  }
-
   return url;
 }
 

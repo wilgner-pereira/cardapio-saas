@@ -25,8 +25,15 @@ describe("shared menu hero", () => {
     expect(container.querySelector(".hero-waves")).toBeInTheDocument();
   });
 
-  it.each(["", "not-a-url", "javascript:alert(1)", "data:image/png;base64,abc", "https://example.com/%bad/storage/v1/object/public/images/%"])("falls back for invalid or unsupported input %s", imageUrl => {
+  it.each(["", "not-a-url", "javascript:alert(1)", "data:image/png;base64,abc"])("falls back for invalid or unsupported input %s", imageUrl => {
     const { container } = render(<MenuHero name="Menu" imageUrl={imageUrl} />);
+    expect(container.querySelector(".hero-waves")).toBeInTheDocument();
+  });
+
+  it("falls back when an image URL with invalid encoding fails to load", () => {
+    const imageUrl = "https://example.com/%bad/storage/v1/object/public/images/%";
+    const { container } = render(<MenuHero name="Menu" imageUrl={imageUrl} />);
+    fireEvent.error(container.querySelector(".hero-cover"));
     expect(container.querySelector(".hero-waves")).toBeInTheDocument();
   });
 });

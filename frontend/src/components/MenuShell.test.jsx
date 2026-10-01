@@ -4,6 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { MenuShell } from './MenuShell';
 
 describe('MenuShell', () => {
+  it('renders public cover and product images from their Supabase URLs', () => {
+    const coverUrl = 'https://project.supabase.co/storage/v1/object/public/menu/cover.webp';
+    const productUrl = 'https://project.supabase.co/storage/v1/object/public/menu/product%20one.webp';
+    const { container } = render(<MenuShell username="test" establishment={{ nome: 'Pizzaria', heroImageUrl: coverUrl }} products={[
+      { id: 1, nome: 'Pizza', descricao: 'Queijo', preco: 20, categoria: 'Pizzas', ativo: true, imageUrl: productUrl }
+    ]} />);
+    expect(container.querySelector('.hero-cover')).toHaveAttribute('src', coverUrl);
+    expect(container.querySelector('.product-image-wrap img')).toHaveAttribute('src', productUrl);
+  });
+
   it('uses the saved product image shape in public and admin menus and accepts a preview override', () => {
     const { container, rerender } = render(<MenuShell username="test" establishment={{ imagensRedondas: true }} />);
     expect(container.querySelector('.menu-page')).toHaveAttribute('data-image-shape', 'round');
