@@ -50,6 +50,7 @@ class CardapioApplicationTests {
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))
                 .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"))
                 .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=()"));
     }
 
