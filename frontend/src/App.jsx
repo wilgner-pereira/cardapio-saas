@@ -55,14 +55,14 @@ function parseRoute(path) {
 
 function sortProducts(products) {
   // ⚡ Bolt Optimization: Optimized sort comparison function.
-  // Avoids unnecessary String allocations and localeCompare calls when category strings are equal,
-  // and compares numeric IDs directly instead of casting to String (~35-40% speedup during sort).
+  // Avoids unnecessary localeCompare calls when category and ID strings match exactly,
+  // preserving exact type safety and lexicographical sorting behavior.
   return [...products].sort((a, b) => {
     const sectionComparison = (a.categoriaOrdem ?? 0) - (b.categoriaOrdem ?? 0);
     if (sectionComparison !== 0) return sectionComparison;
 
-    const catA = a.categoria || "";
-    const catB = b.categoria || "";
+    const catA = String(a.categoria || "");
+    const catB = String(b.categoria || "");
     if (catA !== catB) {
       const categoryComparison = catA.localeCompare(catB);
       if (categoryComparison !== 0) return categoryComparison;
@@ -74,10 +74,12 @@ function sortProducts(products) {
     }
 
     if (a.id === b.id) return 0;
-    if (typeof a.id === "number" && typeof b.id === "number") {
-      return a.id - b.id;
+    const idA = String(a.id);
+    const idB = String(b.id);
+    if (idA !== idB) {
+      return idA.localeCompare(idB);
     }
-    return String(a.id).localeCompare(String(b.id));
+    return 0;
   });
 }
 
