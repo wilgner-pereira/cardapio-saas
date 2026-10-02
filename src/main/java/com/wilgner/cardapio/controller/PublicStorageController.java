@@ -2,6 +2,7 @@ package com.wilgner.cardapio.controller;
 
 import com.wilgner.cardapio.service.SupabaseStorageService;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,6 +28,10 @@ public class PublicStorageController {
                 .map(file -> ResponseEntity.ok()
                         .contentType(file.contentType())
                         .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                        // Prevent MIME-sniffing, XSS, and framing on served assets
+                        .header("X-Content-Type-Options", "nosniff")
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                        .header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
                         .body(file.bytes()));
     }
 }

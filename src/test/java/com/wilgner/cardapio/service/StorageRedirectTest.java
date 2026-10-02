@@ -44,7 +44,10 @@ class StorageRedirectTest {
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
                 mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pending))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
-                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType(name.equals("old-gif") ? "image/gif" : "image/webp"));
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType(name.equals("old-gif") ? "image/gif" : "image/webp"))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options", "nosniff"))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", "inline"))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"));
             }
         } finally { server.stop(0); }
     }
