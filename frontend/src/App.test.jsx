@@ -251,7 +251,7 @@ describe("route-scoped session validation", () => {
     api.updateMyEstablishment.mockRejectedValue(new Error("save refused"));
     const { container } = renderApp("/painel/produtos");
     await screen.findByText("Pizza testes");
-    fireEvent.click(screen.getByRole("button", { name: kind === "product" ? "Editar produto" : "Editar estabelecimento" }));
+    fireEvent.click(screen.getByRole("button", { name: kind === "product" ? `Editar ${product.nome}` : "Editar estabelecimento" }));
     fireEvent.change(container.querySelector('input[type="file"]'), {
       target: { files: [new File(["image"], "new.png", { type: "image/png" })] }
     });

@@ -243,13 +243,13 @@ export function MenuShell({
               <Palette size={18} />
             </button>
             <span>Editor</span>
-            <button className="icon-button" type="button" onClick={onEditEstablishment} aria-label="Editar estabelecimento">
+            <button className="icon-button" type="button" onClick={onEditEstablishment} aria-label="Editar estabelecimento" title="Editar estabelecimento">
               <Pencil size={18} />
             </button>
-            <button className="icon-button" type="button" onClick={onRefresh} aria-label="Atualizar">
+            <button className="icon-button" type="button" onClick={onRefresh} aria-label="Atualizar" title="Atualizar">
               <RefreshCw size={18} />
             </button>
-            <button className="icon-button" type="button" onClick={onLogout} aria-label="Sair">
+            <button className="icon-button" type="button" onClick={onLogout} aria-label="Sair" title="Sair">
               <X size={18} />
             </button>
           </div>
@@ -404,19 +404,19 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
 
       {isAdmin && (
         <div className="product-actions" aria-label={`Acoes de ${product.nome}`}>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onEdit(product)} aria-label="Editar produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onEdit(product)} aria-label={`Editar ${product.nome}`} title={`Editar ${product.nome}`}>
             <Pencil size={16} />
           </button>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, -1)} aria-label={`Subir ${product.nome}`} title={`Subir ${product.nome}`}>
             <ArrowUp size={16} />
           </button>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, 1)} aria-label={`Descer ${product.nome}`} title={`Descer ${product.nome}`}>
             <ArrowDown size={16} />
           </button>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onToggleStatus(product)} aria-label="Alterar disponibilidade">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onToggleStatus(product)} aria-label={`${product.ativo ? "Pausar" : "Ativar"} ${product.nome}`} title={`${product.ativo ? "Pausar" : "Ativar"} ${product.nome}`}>
             {product.ativo ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button className="mini-button danger" type="button" disabled={product._pending} onClick={() => onDelete(product)} aria-label="Remover produto">
+          <button className="mini-button danger" type="button" disabled={product._pending} onClick={() => onDelete(product)} aria-label={`Remover ${product.nome}`} title={`Remover ${product.nome}`}>
             <Trash2 size={16} />
           </button>
         </div>

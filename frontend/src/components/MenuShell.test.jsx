@@ -394,7 +394,7 @@ describe('MenuShell', () => {
     expect(screen.getByText('Pausado')).toBeInTheDocument();
   });
 
-  it('triggers admin actions in hero and nav', () => {
+  it('triggers admin actions in hero and nav and has title tooltips', () => {
     const onEditEstablishment = vi.fn();
     const onRefresh = vi.fn();
     const onLogout = vi.fn();
@@ -414,25 +414,35 @@ describe('MenuShell', () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText('Alterar tema do cardápio'));
+    const themeBtn = screen.getByLabelText('Alterar tema do cardápio');
+    expect(themeBtn).toHaveAttribute('title', 'Alterar tema');
+    fireEvent.click(themeBtn);
     expect(onEditTheme).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByLabelText('Editar estabelecimento'));
+    const editEstBtn = screen.getByLabelText('Editar estabelecimento');
+    expect(editEstBtn).toHaveAttribute('title', 'Editar estabelecimento');
+    fireEvent.click(editEstBtn);
     expect(onEditEstablishment).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByLabelText('Atualizar'));
+    const refreshBtn = screen.getByLabelText('Atualizar');
+    expect(refreshBtn).toHaveAttribute('title', 'Atualizar');
+    fireEvent.click(refreshBtn);
     expect(onRefresh).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByLabelText('Sair'));
+    const logoutBtn = screen.getByLabelText('Sair');
+    expect(logoutBtn).toHaveAttribute('title', 'Sair');
+    fireEvent.click(logoutBtn);
     expect(onLogout).toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('Novo'));
     expect(onCreate).toHaveBeenCalled();
   });
 
-  it('triggers product actions in admin mode', () => {
+  it('triggers product actions in admin mode with product-specific labels and titles', () => {
     const onEdit = vi.fn();
     const onDelete = vi.fn();
+    const onMoveProduct = vi.fn();
+    const onToggleStatus = vi.fn();
 
     render(
       <MenuShell
@@ -441,15 +451,29 @@ describe('MenuShell', () => {
         mode="admin"
         onEdit={onEdit}
         onDelete={onDelete}
+        onMoveProduct={onMoveProduct}
+        onToggleStatus={onToggleStatus}
       />
     );
 
-    const editButtons = screen.getAllByLabelText('Editar produto');
-    fireEvent.click(editButtons[0]);
+    const editBurgerBtn = screen.getByLabelText('Editar Burger');
+    expect(editBurgerBtn).toHaveAttribute('title', 'Editar Burger');
+    fireEvent.click(editBurgerBtn);
     expect(onEdit).toHaveBeenCalledWith(mockProducts[0]);
 
-    const deleteButtons = screen.getAllByLabelText('Remover produto');
-    fireEvent.click(deleteButtons[1]);
+    const pauseBurgerBtn = screen.getByLabelText('Pausar Burger');
+    expect(pauseBurgerBtn).toHaveAttribute('title', 'Pausar Burger');
+    fireEvent.click(pauseBurgerBtn);
+    expect(onToggleStatus).toHaveBeenCalledWith(mockProducts[0]);
+
+    const activateFriesBtn = screen.getByLabelText('Ativar Fries');
+    expect(activateFriesBtn).toHaveAttribute('title', 'Ativar Fries');
+    fireEvent.click(activateFriesBtn);
+    expect(onToggleStatus).toHaveBeenCalledWith(mockProducts[1]);
+
+    const deleteFriesBtn = screen.getByLabelText('Remover Fries');
+    expect(deleteFriesBtn).toHaveAttribute('title', 'Remover Fries');
+    fireEvent.click(deleteFriesBtn);
     expect(onDelete).toHaveBeenCalledWith(mockProducts[1]);
   });
 
