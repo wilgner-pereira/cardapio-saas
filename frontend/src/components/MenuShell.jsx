@@ -404,19 +404,19 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
 
       {isAdmin && (
         <div className="product-actions" aria-label={`Acoes de ${product.nome}`}>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onEdit(product)} aria-label="Editar produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onEdit(product)} aria-label="Editar produto" title="Editar produto">
             <Pencil size={16} />
           </button>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto" title="Subir produto">
             <ArrowUp size={16} />
           </button>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto" title="Descer produto">
             <ArrowDown size={16} />
           </button>
-          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onToggleStatus(product)} aria-label="Alterar disponibilidade">
+          <button className="mini-button" type="button" disabled={product._pending} onClick={() => onToggleStatus(product)} aria-label={product.ativo ? "Ocultar produto" : "Exibir produto"} title={product.ativo ? "Ocultar produto" : "Exibir produto"}>
             {product.ativo ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button className="mini-button danger" type="button" disabled={product._pending} onClick={() => onDelete(product)} aria-label="Remover produto">
+          <button className="mini-button danger" type="button" disabled={product._pending} onClick={() => onDelete(product)} aria-label="Remover produto" title="Remover produto">
             <Trash2 size={16} />
           </button>
         </div>

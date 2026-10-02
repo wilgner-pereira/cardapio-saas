@@ -430,9 +430,10 @@ describe('MenuShell', () => {
     expect(onCreate).toHaveBeenCalled();
   });
 
-  it('triggers product actions in admin mode', () => {
+  it('triggers product actions in admin mode and provides accessible labels and titles', () => {
     const onEdit = vi.fn();
     const onDelete = vi.fn();
+    const onToggleStatus = vi.fn();
 
     render(
       <MenuShell
@@ -441,14 +442,23 @@ describe('MenuShell', () => {
         mode="admin"
         onEdit={onEdit}
         onDelete={onDelete}
+        onToggleStatus={onToggleStatus}
       />
     );
 
     const editButtons = screen.getAllByLabelText('Editar produto');
+    expect(editButtons[0]).toHaveAttribute('title', 'Editar produto');
     fireEvent.click(editButtons[0]);
     expect(onEdit).toHaveBeenCalledWith(mockProducts[0]);
 
+    const hideButton = screen.getByLabelText('Ocultar produto');
+    expect(hideButton).toHaveAttribute('title', 'Ocultar produto');
+
+    const showButton = screen.getByLabelText('Exibir produto');
+    expect(showButton).toHaveAttribute('title', 'Exibir produto');
+
     const deleteButtons = screen.getAllByLabelText('Remover produto');
+    expect(deleteButtons[1]).toHaveAttribute('title', 'Remover produto');
     fireEvent.click(deleteButtons[1]);
     expect(onDelete).toHaveBeenCalledWith(mockProducts[1]);
   });
