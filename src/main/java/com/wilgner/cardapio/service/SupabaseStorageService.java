@@ -242,6 +242,18 @@ public class SupabaseStorageService {
         }
     }
 
+    private static final Set<MediaType> ALLOWED_IMAGE_TYPES = Set.of(
+            MediaType.IMAGE_JPEG,
+            MediaType.IMAGE_PNG,
+            MediaType.IMAGE_GIF,
+            MediaType.parseMediaType("image/webp")
+    );
+
+    private boolean isAllowedDownloadMediaType(MediaType mediaType) {
+        if (mediaType == null) return false;
+        return ALLOWED_IMAGE_TYPES.stream().anyMatch(type -> type.isCompatibleWith(mediaType));
+    }
+
     private void validateObjectKey(String key) {
         if (key == null || key.isBlank() || key.length() > 100 || key.contains("/")
                 || key.contains("\\") || key.equals(".") || key.equals("..")) {
@@ -287,12 +299,13 @@ public class SupabaseStorageService {
                         throw new ExternalServiceException("Imagem não encontrada no storage");
                     }
 
-                    MediaType contentType = response.getHeaders().getContentType();
+                    MediaType rawType = response.getHeaders().getContentType();
+                    MediaType contentType = isAllowedDownloadMediaType(rawType)
+                            ? rawType
+                            : MediaType.APPLICATION_OCTET_STREAM;
                     return new StoredFile(
                             response.getBody(),
-                            contentType != null
-                                    ? contentType
-                                    : MediaType.APPLICATION_OCTET_STREAM
+                            contentType
                     );
                 });
     }

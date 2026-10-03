@@ -1,0 +1,4 @@
+## 2026-10-03 - Restrict Public Storage Download Media Types and CSP
+**Vulnerability:** Public storage file downloads (`/public/storage/{fileName}`) passed through remote storage Content-Type headers directly without validation, potentially serving HTML, SVG, or JavaScript content as executable inline media on the primary API domain (`api.lunemenu.app`).
+**Learning:** Object storage proxies on the primary domain must strictly validate MIME types against expected media categories (raster images only for menu uploads) and enforce safe response headers.
+**Prevention:** Filter download Content-Type to safe raster image formats (`image/webp`, `image/jpeg`, `image/png`, `image/gif`), fall back to `application/octet-stream` for non-matching MIME types, and include `Content-Disposition: inline` and restrictive `Content-Security-Policy` headers on media endpoints.

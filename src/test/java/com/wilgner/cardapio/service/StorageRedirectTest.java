@@ -44,6 +44,8 @@ class StorageRedirectTest {
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
                 mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pending))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'"))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", "inline"))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType(name.equals("old-gif") ? "image/gif" : "image/webp"));
             }
         } finally { server.stop(0); }
@@ -93,6 +95,33 @@ class StorageRedirectTest {
             assertThatThrownBy(() -> service.downloadFile("../private")).isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> service.downloadFile("http://169.254.169.254/latest")).isInstanceOf(IllegalArgumentException.class);
         } finally { source.stop(0); target.stop(0); }
+    }
+
+    @Test void dangerousContentTypesAreSanitizedToOctetStreamAndIncludeCsp() throws Exception {
+        byte[] html = "<script>alert(1)</script>".getBytes();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, html.length);
+            exchange.getResponseBody().write(html);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var service = new SupabaseStorageService(new WebClientConfig().webClientBuilder());
+            ReflectionTestUtils.setField(service, "projectUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            ReflectionTestUtils.setField(service, "bucket", "test");
+            ReflectionTestUtils.setField(service, "apiKey", "test-only-key");
+            var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+                    new com.wilgner.cardapio.controller.PublicStorageController(service)).build();
+            var pending = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/public/storage/payload.html"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pending))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", "inline"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("application/octet-stream"));
+        } finally { server.stop(0); }
     }
 
     @Test void endpointRejectsNonHttpSchemesCredentialsAndQueryInjection() {
