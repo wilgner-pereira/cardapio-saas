@@ -7,8 +7,8 @@ import com.wilgner.cardapio.model.entity.Estabelecimento;
 import com.wilgner.cardapio.model.entity.Produto;
 import com.wilgner.cardapio.repository.EstabelecimentoRepository;
 import com.wilgner.cardapio.repository.ProdutoRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -27,7 +27,10 @@ public class PublicProdutoServiceImpl {
         this.produtoMapper = produtoMapper;
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) instead of jakarta.transaction.Transactional.
+    // This sets Hibernate flush mode to MANUAL (disabling dirty checking overhead across loaded entities)
+    // and configures the JDBC connection as read-only, optimizing public menu query performance and memory usage.
+    @Transactional(readOnly = true)
     public List<ProdutoResponseDTO> listarProdutoDinamico(String slug, String categoria) {
         Estabelecimento estabelecimento = estabelecimentoRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));
@@ -49,7 +52,8 @@ public class PublicProdutoServiceImpl {
         return produtoMapper.toDTOList(produtos);
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) for read-only establishment info retrieval.
+    @Transactional(readOnly = true)
     public EstabelecimentoInfoDTO obterInfoEstabelecimento(String slug) {
         Estabelecimento estabelecimento = estabelecimentoRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Estabelecimento não encontrado"));

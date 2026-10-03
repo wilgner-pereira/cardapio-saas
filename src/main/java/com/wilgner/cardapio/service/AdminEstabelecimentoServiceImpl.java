@@ -19,9 +19,9 @@ import com.wilgner.cardapio.repository.RoleRepository;
 import com.wilgner.cardapio.repository.UsuarioRepository;
 import com.wilgner.cardapio.security.SecurityAuditLogger;
 import com.wilgner.cardapio.security.RefreshSessionService;
-import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
@@ -135,7 +135,8 @@ public class AdminEstabelecimentoServiceImpl {
         return new RegisterResponseDTO(salvo.getUsername(), estabelecimentoSalvo.getSlug());
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) for read-only platform client details lookup.
+    @Transactional(readOnly = true)
     public PlatformClientDetailsDTO obterEstabelecimento(Long id) {
         Estabelecimento estabelecimento = findClient(id);
         return clientDetails(estabelecimento, findTenantAdmin(id));
@@ -181,7 +182,8 @@ public class AdminEstabelecimentoServiceImpl {
                 usuario.getId(), id, null);
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) for read-only client listing.
+    @Transactional(readOnly = true)
     public List<EstabelecimentoResumoDTO> listarEstabelecimentos() {
         return estabelecimentoMapper.toResumoDTOList(estabelecimentoRepository.findPlatformClients());
     }

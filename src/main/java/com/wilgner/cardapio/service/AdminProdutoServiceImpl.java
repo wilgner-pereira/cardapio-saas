@@ -11,9 +11,9 @@ import com.wilgner.cardapio.repository.ProdutoRepository;
 import com.wilgner.cardapio.repository.EstabelecimentoRepository;
 import com.wilgner.cardapio.repository.UsuarioRepository;
 import com.wilgner.cardapio.security.SecurityAuditLogger;
-import jakarta.transaction.Transactional;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
@@ -112,14 +112,16 @@ public class AdminProdutoServiceImpl {
         return produtoMapper.toDTO(produtoRepository.save(produto));
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) for read-only query.
+    @Transactional(readOnly = true)
     public ProdutoResponseDTO pesquisarProdutoPorId(Long produtoId) {
         Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
         Produto produto = getProdutoDoEstabelecimento(estabelecimento, produtoId);
         return produtoMapper.toDTO(produto);
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) for read-only listing.
+    @Transactional(readOnly = true)
     public List<ProdutoResponseDTO> listarProdutoDinamico(String categoria) {
         Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
 

@@ -8,9 +8,9 @@ import com.wilgner.cardapio.model.entity.Estabelecimento;
 import com.wilgner.cardapio.model.entity.Usuario;
 import com.wilgner.cardapio.repository.EstabelecimentoRepository;
 import com.wilgner.cardapio.repository.UsuarioRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.wilgner.cardapio.model.entity.CardapioTema;
 
 @Service
@@ -33,7 +33,8 @@ public class EstabelecimentoServiceImpl {
         this.entityManager = entityManager;
     }
 
-    @Transactional
+    // ⚡ Bolt Optimization: Use Spring @Transactional(readOnly = true) for read-only establishment fetching.
+    @Transactional(readOnly = true)
     public EstabelecimentoResponseDTO obterMeuEstabelecimento() {
         Estabelecimento estabelecimento = getEstabelecimentoAutenticado();
 
