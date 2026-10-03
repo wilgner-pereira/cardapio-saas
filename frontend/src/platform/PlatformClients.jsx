@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Search, Store } from "../components/icons.js";
 import { PlatformLink } from "./PlatformLayout.jsx";
 
@@ -22,8 +22,19 @@ export function ClientActions({ client, busy, onActivate, onDeactivate, onDelete
 
 export function PlatformClients({ clients, loading, error, busy, onRetry, onCreate, onNavigate, ...actions }) {
   const [search, setSearch] = useState("");
-  const term = search.trim().toLocaleLowerCase("pt-BR");
-  const filtered = clients.filter(client => `${client.nome} ${client.slug}`.toLocaleLowerCase("pt-BR").includes(term));
+
+  // ⚡ Bolt Optimization: Memoize filtered client list to avoid re-filtering on unrelated re-renders (e.g., when actions or busy state change).
+  // Short-circuits filtering when search term is empty while preserving original matching behavior.
+  const { term, filtered } = useMemo(() => {
+    const trimmedTerm = search.trim().toLocaleLowerCase("pt-BR");
+    if (!trimmedTerm) {
+      return { term: "", filtered: clients };
+    }
+    const result = clients.filter(client =>
+      `${client.nome || ""} ${client.slug || ""}`.toLocaleLowerCase("pt-BR").includes(trimmedTerm)
+    );
+    return { term: trimmedTerm, filtered: result };
+  }, [clients, search]);
 
   return <>
     <div className="platform-page-heading">
