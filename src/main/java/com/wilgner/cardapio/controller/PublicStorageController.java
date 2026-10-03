@@ -23,9 +23,12 @@ public class PublicStorageController {
 
     @GetMapping("/{fileName:.+}")
     public Mono<ResponseEntity<byte[]>> download(@PathVariable String fileName) {
+        // Enforce restrictive Content-Security-Policy on public user-content downloads
+        // to prevent script execution (defense-in-depth against Stored XSS).
         return storageService.downloadFile(fileName)
                 .map(file -> ResponseEntity.ok()
                         .contentType(file.contentType())
+                        .header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox")
                         .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
                         .body(file.bytes()));
     }
