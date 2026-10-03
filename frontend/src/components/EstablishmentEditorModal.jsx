@@ -51,7 +51,12 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
+  useEffect(() => {
     function handleKeyDown(event) {
       if (event.key === "Escape" && !saving) {
         event.preventDefault();
@@ -61,7 +66,6 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose, saving]);
