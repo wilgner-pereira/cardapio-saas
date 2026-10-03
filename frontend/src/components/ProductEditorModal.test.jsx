@@ -91,6 +91,23 @@ describe("ProductEditorModal accessibility and dismiss behavior", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("displays existing product image preview when editing a product with an imageUrl", () => {
+    const existingProduct = {
+      id: "p1",
+      nome: "Hambúrguer",
+      descricao: "Delicioso hambúrguer artesanal",
+      preco: 32.5,
+      categoria: "Lanches",
+      imageUrl: "https://example.com/burguer.jpg"
+    };
+
+    render(<ProductEditorModal product={existingProduct} onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+    const img = screen.getByAltText("Prévia da imagem do produto");
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute("src", "https://example.com/burguer.jpg");
+  });
+
   it("renders form errors with role alert", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("Preço inválido"));
     const { container } = render(<ProductEditorModal onClose={vi.fn()} onSubmit={onSubmit} />);

@@ -34,11 +34,14 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
   }, [product]);
 
   useEffect(() => {
-    if (!file) { setPreview(""); return; }
+    if (!file) {
+      setPreview(product?.imageUrl || "");
+      return;
+    }
     const url = URL.createObjectURL(file);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
+  }, [file, product?.imageUrl]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -85,7 +88,7 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
     >
       <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
-          <X size={20} />
+          <X size={20} aria-hidden="true" />
         </button>
 
         <h2 id="product-modal-title">{product ? "Editar item" : "Novo item"}</h2>
@@ -114,7 +117,7 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
           </div>
 
           <label className="file-field">
-            <ImagePlus size={20} />
+            <ImagePlus size={20} aria-hidden="true" />
             <span>{file ? "Imagem pronta" : product?.imageUrl ? "Trocar imagem" : "Enviar imagem"}</span>
             <input type="file" accept={IMAGE_ACCEPT} aria-label="Imagem do produto" disabled={saving || processing} onChange={event => {
               const selected = event.target.files?.[0];
@@ -129,7 +132,7 @@ export function ProductEditorModal({ product, onClose, onSubmit }) {
           {(error || image.error) && <p className="form-error" role="alert">{error || image.error}</p>}
 
           <button className="primary-action" type="submit" disabled={saving || processing || Boolean(image.error)}>
-            {saving || processing ? <Loader2 className="spin" size={18} /> : null}
+            {saving || processing ? <Loader2 className="spin" size={18} aria-hidden="true" /> : null}
             {processing ? "Processando imagem…" : "Salvar"}
           </button>
         </form>
