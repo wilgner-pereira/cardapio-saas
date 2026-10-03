@@ -48,6 +48,24 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
     };
   }, [heroFile, heroRemoved, establishment?.heroImageUrl, onHeroPreview]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape" && !saving) {
+        event.preventDefault();
+        onClose?.();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, saving]);
+
   function selectHero(event) {
     const selected = event.target.files?.[0];
     if (!selected) return;
@@ -81,10 +99,16 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onClick={event => {
+        if (event.target === event.currentTarget && !saving) onClose?.();
+      }}
+    >
       <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="establishment-modal-title">
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
-          <X size={20} />
+          <X size={20} aria-hidden="true" />
         </button>
 
         <h2 id="establishment-modal-title">Editar estabelecimento</h2>
