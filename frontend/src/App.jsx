@@ -54,21 +54,34 @@ function parseRoute(path) {
 }
 
 function sortProducts(products) {
-  return [...products].sort((a, b) => {
-    const sectionComparison = (a.categoriaOrdem ?? 0) - (b.categoriaOrdem ?? 0);
+  // ⚡ Bolt Optimization: Use Schwartzian transform (decorate-sort-undecorate)
+  // to avoid repeated String() conversions inside the sort loop while maintaining localeCompare behavior.
+  const mapped = products.map((item, index) => ({
+    item,
+    index,
+    catOrdem: item.categoriaOrdem ?? 0,
+    categoria: String(item.categoria || ""),
+    ordem: item.ordem ?? 0,
+    idStr: String(item.id)
+  }));
+
+  mapped.sort((a, b) => {
+    const sectionComparison = a.catOrdem - b.catOrdem;
     if (sectionComparison !== 0) return sectionComparison;
-    const categoryComparison = String(a.categoria || "").localeCompare(String(b.categoria || ""));
-    if (categoryComparison !== 0) {
-      return categoryComparison;
-    }
 
-    const orderComparison = (a.ordem ?? 0) - (b.ordem ?? 0);
-    if (orderComparison !== 0) {
-      return orderComparison;
-    }
+    const categoryComparison = a.categoria.localeCompare(b.categoria);
+    if (categoryComparison !== 0) return categoryComparison;
 
-    return String(a.id).localeCompare(String(b.id));
+    const orderComparison = a.ordem - b.ordem;
+    if (orderComparison !== 0) return orderComparison;
+
+    const idComparison = a.idStr.localeCompare(b.idStr);
+    if (idComparison !== 0) return idComparison;
+
+    return a.index - b.index;
   });
+
+  return mapped.map(entry => entry.item);
 }
 
 export function App() {
