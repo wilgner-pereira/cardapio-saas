@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { MenuHero } from "./MenuHero.jsx";
 import { ScrollToTopButton } from "./ScrollToTopButton.jsx";
@@ -383,7 +383,10 @@ export function MenuShell({
   );
 }
 
-function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onToggleStatus }) {
+// ⚡ Bolt Optimization: Wrap ProductCard and ProductImage in React.memo to skip re-rendering
+// every card in the menu whenever parent MenuShell state (e.g., activeCategory tab or shareFeedback)
+// changes during user interaction and scrolling.
+const ProductCard = memo(function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onToggleStatus }) {
   const hasImage = Boolean(product.imageUrl);
 
   return (
@@ -423,9 +426,9 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
       )}
     </article>
   );
-}
+});
 
-function ProductImage({ imageUrl, name, isAdmin }) {
+const ProductImage = memo(function ProductImage({ imageUrl, name, isAdmin }) {
   const [failed, setFailed] = useState(false);
   const resolvedImageUrl = api.resolveImageUrl(imageUrl);
 
@@ -444,7 +447,7 @@ function ProductImage({ imageUrl, name, isAdmin }) {
         onError={() => setFailed(true)} />
     </div>
   );
-}
+});
 
 function StatePanel({ title, tone = "neutral" }) {
   return (
