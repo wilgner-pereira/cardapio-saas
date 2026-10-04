@@ -68,7 +68,15 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
     public ResponseEntity<ApiErrorDTO> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex, HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+        String message = ex.getConstraintViolations() == null || ex.getConstraintViolations().isEmpty()
+                ? "Dados inválidos"
+                : ex.getConstraintViolations().stream()
+                        .map(jakarta.validation.ConstraintViolation::getMessage)
+                        .filter(msg -> msg != null && !msg.isBlank())
+                        .distinct()
+                        .reduce((a, b) -> a + "; " + b)
+                        .orElse("Dados inválidos");
+        return build(HttpStatus.BAD_REQUEST, message, request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

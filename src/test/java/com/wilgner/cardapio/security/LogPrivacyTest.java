@@ -60,4 +60,20 @@ class LogPrivacyTest {
             assertThat(LogSanitizer.method("GET\r\nsecret")).isEqualTo("OTHER");
         } finally { SecurityContextHolder.clearContext(); logger.detachAppender(appender); }
     }
+
+    @Test void constraintViolationHandlerDoesNotExposeInternalMethodSignaturesOrParameterPaths() {
+        jakarta.validation.ConstraintViolation<?> violation = org.mockito.Mockito.mock(jakarta.validation.ConstraintViolation.class);
+        org.mockito.Mockito.when(violation.getMessage()).thenReturn("URL da logo inválida");
+
+        var ex = new jakarta.validation.ConstraintViolationException(
+                "atualizarLogo.logoUrl: URL da logo inválida",
+                java.util.Set.of(violation)
+        );
+        var request = new MockHttpServletRequest("PUT", "/painel/estabelecimento/logo");
+        var response = new ApiExceptionHandler().handleConstraintViolation(ex, request);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("URL da logo inválida")
+                .doesNotContain("atualizarLogo", "logoUrl");
+    }
 }
