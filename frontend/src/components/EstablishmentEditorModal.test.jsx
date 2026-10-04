@@ -85,4 +85,34 @@ describe("hero image editing", () => {
     expect(container.querySelector(".hero-waves")).toBeInTheDocument();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
+
+  it("sets initial focus, restores focus on unmount, and traps keyboard Tab/Shift+Tab navigation", () => {
+    const triggerButton = document.createElement("button");
+    document.body.appendChild(triggerButton);
+    triggerButton.focus();
+    expect(document.activeElement).toBe(triggerButton);
+
+    const { container, unmount } = render(<EstablishmentEditorModal establishment={{ nome: "Pizzaria" }} onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+    const nomeInput = container.querySelector('input[name="nome"]');
+    expect(document.activeElement).toBe(nomeInput);
+
+    const focusables = container.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
+    );
+    const firstElement = focusables[0];
+    const lastElement = focusables[focusables.length - 1];
+
+    firstElement.focus();
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(lastElement);
+
+    lastElement.focus();
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: false });
+    expect(document.activeElement).toBe(firstElement);
+
+    unmount();
+    expect(document.activeElement).toBe(triggerButton);
+    document.body.removeChild(triggerButton);
+  });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "./icons.js";
 import { IMAGE_ACCEPT, MAX_SOURCE_IMAGE_BYTES } from "../api/uploadValidation.js";
 import { useOptimizedImage } from "./useOptimizedImage.js";
@@ -23,6 +23,55 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
   const [heroPreview, setHeroPreview] = useState(establishment?.heroImageUrl || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const modalRef = useRef(null);
+  const previouslyFocusedElementRef = useRef(null);
+
+  useEffect(() => {
+    previouslyFocusedElementRef.current = document.activeElement;
+    const firstInput = modalRef.current?.querySelector('input[name="nome"]');
+    if (firstInput) {
+      firstInput.focus();
+    } else {
+      modalRef.current?.focus();
+    }
+
+    return () => {
+      if (previouslyFocusedElementRef.current?.focus) {
+        previouslyFocusedElementRef.current.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+        return;
+      }
+
+      if (event.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
+        );
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        } else if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     setForm({
@@ -82,7 +131,7 @@ export function EstablishmentEditorModal({ establishment, onClose, onSubmit, onH
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="establishment-modal-title">
+      <section ref={modalRef} className="product-modal" role="dialog" aria-modal="true" aria-labelledby="establishment-modal-title" tabIndex={-1}>
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={20} />
         </button>
