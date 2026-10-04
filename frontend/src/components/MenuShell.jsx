@@ -240,17 +240,17 @@ export function MenuShell({
               aria-label="Alterar tema do cardápio"
               title="Alterar tema"
             >
-              <Palette size={18} />
+              <Palette size={18} aria-hidden="true" />
             </button>
             <span>Editor</span>
             <button className="icon-button" type="button" onClick={onEditEstablishment} aria-label="Editar estabelecimento">
-              <Pencil size={18} />
+              <Pencil size={18} aria-hidden="true" />
             </button>
             <button className="icon-button" type="button" onClick={onRefresh} aria-label="Atualizar">
-              <RefreshCw size={18} />
+              <RefreshCw size={18} aria-hidden="true" />
             </button>
             <button className="icon-button" type="button" onClick={onLogout} aria-label="Sair">
-              <X size={18} />
+              <X size={18} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -291,10 +291,10 @@ export function MenuShell({
             {(establishment?.telefone || establishment?.endereco) && (
               <div className="store-meta">
                 {establishment?.telefone && (
-                  <span><Phone size={15} /> {establishment.telefone}</span>
+                  <span><Phone size={15} aria-hidden="true" /> {establishment.telefone}</span>
                 )}
                 {establishment?.endereco && (
-                  <span><MapPin size={15} /> {establishment.endereco}</span>
+                  <span><MapPin size={15} aria-hidden="true" /> {establishment.endereco}</span>
                 )}
               </div>
             )}
@@ -318,7 +318,7 @@ export function MenuShell({
           })}
           {isAdmin && (
             <button type="button" className="category-tab add-tab" onClick={onCreate}>
-              <Plus size={20} />
+              <Plus size={20} aria-hidden="true" />
               <span>Novo</span>
             </button>
           )}
@@ -341,12 +341,12 @@ export function MenuShell({
                     <button className="mini-button" type="button"
                       disabled={categoryMoving || products.some(product => product._pending) || categoryIndex === 0}
                       onClick={() => onMoveCategory(category, -1)} aria-label={`Subir seção ${category}`}>
-                      <ArrowUp size={16} />
+                      <ArrowUp size={16} aria-hidden="true" />
                     </button>
                     <button className="mini-button" type="button"
                       disabled={categoryMoving || products.some(product => product._pending) || categoryIndex === categories.length - 1}
                       onClick={() => onMoveCategory(category, 1)} aria-label={`Descer seção ${category}`}>
-                      <ArrowDown size={16} />
+                      <ArrowDown size={16} aria-hidden="true" />
                     </button>
                   </div>
                 )}
@@ -405,19 +405,19 @@ function ProductCard({ product, isAdmin, onEdit, onDelete, onMoveProduct, onTogg
       {isAdmin && (
         <div className="product-actions" aria-label={`Acoes de ${product.nome}`}>
           <button className="mini-button" type="button" disabled={product._pending} onClick={() => onEdit(product)} aria-label="Editar produto">
-            <Pencil size={16} />
+            <Pencil size={16} aria-hidden="true" />
           </button>
           <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, -1)} aria-label="Subir produto">
-            <ArrowUp size={16} />
+            <ArrowUp size={16} aria-hidden="true" />
           </button>
           <button className="mini-button" type="button" disabled={product._pending} onClick={() => onMoveProduct(product, 1)} aria-label="Descer produto">
-            <ArrowDown size={16} />
+            <ArrowDown size={16} aria-hidden="true" />
           </button>
           <button className="mini-button" type="button" disabled={product._pending} onClick={() => onToggleStatus(product)} aria-label="Alterar disponibilidade">
-            {product.ativo ? <EyeOff size={16} /> : <Eye size={16} />}
+            {product.ativo ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
           </button>
           <button className="mini-button danger" type="button" disabled={product._pending} onClick={() => onDelete(product)} aria-label="Remover produto">
-            <Trash2 size={16} />
+            <Trash2 size={16} aria-hidden="true" />
           </button>
         </div>
       )}
