@@ -100,6 +100,10 @@ public class SecurityConfig {
                                 .policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                         .addHeaderWriter(new StaticHeadersWriter(
                                 "Permissions-Policy", "camera=(), microphone=(), geolocation=()"))
+                        .addHeaderWriter(new StaticHeadersWriter(
+                                "Cross-Origin-Opener-Policy", "same-origin"))
+                        .addHeaderWriter(new StaticHeadersWriter(
+                                "Cross-Origin-Resource-Policy", "same-site"))
                 )
 
                 .sessionManagement(session -> session

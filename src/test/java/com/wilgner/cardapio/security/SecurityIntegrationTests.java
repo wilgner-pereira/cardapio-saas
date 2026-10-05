@@ -97,6 +97,13 @@ public class SecurityIntegrationTests {
     }
 
     @Test
+    void crossOriginSecurityHeaders_devemEstarPresentes() throws Exception {
+        mockMvc.perform(get("/auth/csrf"))
+                .andExpect(header().string("Cross-Origin-Opener-Policy", "same-origin"))
+                .andExpect(header().string("Cross-Origin-Resource-Policy", "same-site"));
+    }
+
+    @Test
     void acessoSemToken_deveRetornar401() throws Exception {
         mockMvc.perform(get("/painel/estabelecimento"))
                 .andExpect(status().isUnauthorized());
