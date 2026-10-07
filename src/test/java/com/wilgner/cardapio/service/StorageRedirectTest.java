@@ -44,6 +44,8 @@ class StorageRedirectTest {
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
                 mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pending))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options", "nosniff"))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", "inline"))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType(name.equals("old-gif") ? "image/gif" : "image/webp"));
             }
         } finally { server.stop(0); }
@@ -92,6 +94,7 @@ class StorageRedirectTest {
             assertThat(destinationHits.get()).isZero();
             assertThatThrownBy(() -> service.downloadFile("../private")).isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> service.downloadFile("http://169.254.169.254/latest")).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> service.downloadFile("a".repeat(101))).isInstanceOf(IllegalArgumentException.class);
         } finally { source.stop(0); target.stop(0); }
     }
 

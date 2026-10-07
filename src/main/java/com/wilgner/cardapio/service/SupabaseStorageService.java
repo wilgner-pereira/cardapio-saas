@@ -251,12 +251,8 @@ public class SupabaseStorageService {
 
     public Mono<StoredFile> downloadFile(String fileName) {
 
-        if (fileName == null
-                || fileName.isBlank()
-                || fileName.contains("/")
-                || fileName.contains("\\") || fileName.equals(".") || fileName.equals("..")) {
-            throw new IllegalArgumentException("Nome de arquivo inválido");
-        }
+        // Enforce object key length and path-traversal constraints consistently
+        validateObjectKey(fileName);
 
         String downloadUrl = UriComponentsBuilder
                 .fromHttpUrl(projectUrl)
