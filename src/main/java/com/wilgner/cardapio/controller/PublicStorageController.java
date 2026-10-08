@@ -27,6 +27,8 @@ public class PublicStorageController {
                 .map(file -> ResponseEntity.ok()
                         .contentType(file.contentType())
                         .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                        .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                        .header("X-Content-Type-Options", "nosniff")
                         .body(file.bytes()));
     }
 }
