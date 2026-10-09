@@ -95,6 +95,40 @@ class StorageRedirectTest {
         } finally { source.stop(0); target.stop(0); }
     }
 
+    @Test void unsafeDownloadContentTypesAreSanitizedToOctetStream() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if (path.contains("html")) {
+                exchange.getResponseHeaders().add("Content-Type", "text/html");
+            } else if (path.contains("svg")) {
+                exchange.getResponseHeaders().add("Content-Type", "image/svg+xml");
+            } else {
+                exchange.getResponseHeaders().add("Content-Type", "application/javascript");
+            }
+            byte[] body = "payload".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var service = new SupabaseStorageService(new WebClientConfig().webClientBuilder());
+            ReflectionTestUtils.setField(service, "projectUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            ReflectionTestUtils.setField(service, "bucket", "test");
+            ReflectionTestUtils.setField(service, "apiKey", "test-only-key");
+            var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+                    new com.wilgner.cardapio.controller.PublicStorageController(service)).build();
+            for (String name : new String[]{"malicious.html", "payload.svg", "script.js"}) {
+                var pending = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/public/storage/" + name))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
+                mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pending))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("application/octet-stream"));
+            }
+        } finally { server.stop(0); }
+    }
+
     @Test void endpointRejectsNonHttpSchemesCredentialsAndQueryInjection() {
         var service = new SupabaseStorageService(new WebClientConfig().webClientBuilder());
         ReflectionTestUtils.setField(service, "bucket", "test");

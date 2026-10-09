@@ -30,6 +30,13 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 @Service
 public class SupabaseStorageService {
 
+    private static final java.util.List<MediaType> SAFE_DOWNLOAD_MEDIA_TYPES = java.util.List.of(
+            MediaType.IMAGE_JPEG,
+            MediaType.IMAGE_PNG,
+            MediaType.IMAGE_GIF,
+            MediaType.parseMediaType("image/webp")
+    );
+
     private final WebClient webClient;
 
     @Value("${supabase.url}")
@@ -287,14 +294,24 @@ public class SupabaseStorageService {
                         throw new ExternalServiceException("Imagem não encontrada no storage");
                     }
 
-                    MediaType contentType = response.getHeaders().getContentType();
+                    // Security: Restrict served content types to safe image formats to prevent XSS/script execution via SVG/HTML
+                    MediaType contentType = sanitizeDownloadContentType(response.getHeaders().getContentType());
                     return new StoredFile(
                             response.getBody(),
-                            contentType != null
-                                    ? contentType
-                                    : MediaType.APPLICATION_OCTET_STREAM
+                            contentType
                     );
                 });
+    }
+
+    private MediaType sanitizeDownloadContentType(MediaType contentType) {
+        if (contentType != null) {
+            for (MediaType safeType : SAFE_DOWNLOAD_MEDIA_TYPES) {
+                if (contentType.isCompatibleWith(safeType)) {
+                    return contentType;
+                }
+            }
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     public record StoredFile(
