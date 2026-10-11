@@ -99,7 +99,11 @@ public class SecurityIntegrationTests {
     @Test
     void acessoSemToken_deveRetornar401() throws Exception {
         mockMvc.perform(get("/painel/estabelecimento"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Cross-Origin-Opener-Policy", "same-origin"))
+                .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=()"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
     }
 
     @Test
