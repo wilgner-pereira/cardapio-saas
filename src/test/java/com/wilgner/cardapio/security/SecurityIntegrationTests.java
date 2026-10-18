@@ -109,6 +109,12 @@ public class SecurityIntegrationTests {
     }
 
     @Test
+    void respostasDevemConterCabecalhoXPermittedCrossDomainPolicies() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(header().string("X-Permitted-Cross-Domain-Policies", "none"));
+    }
+
+    @Test
     void usuarioSemPermissao_deveRetornar403() throws Exception {
         // ADMIN não tem permissão para /painel/estabelecimento que é apenas USER
         mockMvc.perform(get("/painel/estabelecimento").cookie(adminCookie))
