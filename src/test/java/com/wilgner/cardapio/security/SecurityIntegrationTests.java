@@ -97,6 +97,16 @@ public class SecurityIntegrationTests {
     }
 
     @Test
+    void headersDeSeguranca_devemEstarPresentes() throws Exception {
+        mockMvc.perform(get("/painel/estabelecimento").cookie(userCookie))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Permitted-Cross-Domain-Policies", "none"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=()"));
+    }
+
+    @Test
     void acessoSemToken_deveRetornar401() throws Exception {
         mockMvc.perform(get("/painel/estabelecimento"))
                 .andExpect(status().isUnauthorized());
