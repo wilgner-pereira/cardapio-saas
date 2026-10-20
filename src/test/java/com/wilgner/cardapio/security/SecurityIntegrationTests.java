@@ -109,6 +109,13 @@ public class SecurityIntegrationTests {
     }
 
     @Test
+    void validateToken_deveIncluirCacheControlNoStore() throws Exception {
+        mockMvc.perform(get("/auth/validate").cookie(userCookie))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
     void usuarioSemPermissao_deveRetornar403() throws Exception {
         // ADMIN não tem permissão para /painel/estabelecimento que é apenas USER
         mockMvc.perform(get("/painel/estabelecimento").cookie(adminCookie))

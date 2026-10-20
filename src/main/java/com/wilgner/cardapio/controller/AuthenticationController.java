@@ -126,7 +126,8 @@ public class AuthenticationController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Usuario user = findAuthenticatedUser(userDetails.getUsername());
-        return ResponseEntity.ok(toResponse("Token válido", user, 0));
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(toResponse("Token válido", user, 0));
     }
 
     @GetMapping("/session")
