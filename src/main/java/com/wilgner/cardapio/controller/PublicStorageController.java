@@ -26,6 +26,7 @@ public class PublicStorageController {
         return storageService.downloadFile(fileName)
                 .map(file -> ResponseEntity.ok()
                         .contentType(file.contentType())
+                        .header("X-Content-Type-Options", "nosniff")
                         .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
                         .body(file.bytes()));
     }
