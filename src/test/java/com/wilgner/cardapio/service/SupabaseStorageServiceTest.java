@@ -126,6 +126,13 @@ public class SupabaseStorageServiceTest {
                 () -> service.validateFile(underreported, ImageUploadProfile.PRODUCT));
     }
 
+    @Test public void downloadFileRejectsInvalidKeys() {
+        String longKey = "a".repeat(101);
+        for (String invalidKey : new String[]{null, "", "   ", longKey, "../private", "folder/file", ".", ".."}) {
+            assertThrows(IllegalArgumentException.class, () -> service.downloadFile(invalidKey));
+        }
+    }
+
     static byte[] fixture(String name) throws Exception {
         try (var input = SupabaseStorageServiceTest.class.getResourceAsStream("/images/" + name)) {
             return java.util.Objects.requireNonNull(input).readAllBytes();
