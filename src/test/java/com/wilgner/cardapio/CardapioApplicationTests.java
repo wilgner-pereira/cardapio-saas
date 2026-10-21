@@ -46,6 +46,7 @@ class CardapioApplicationTests {
     @Test
     void securityHeadersArePresent() throws Exception {
         mockMvc.perform(get("/public/restaurante/cardapio").secure(true))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))

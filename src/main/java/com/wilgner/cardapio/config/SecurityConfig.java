@@ -91,6 +91,8 @@ public class SecurityConfig {
                         ))
 
                 .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'"))
                         .frameOptions(frame -> frame.deny())
                         .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
                         .httpStrictTransportSecurity(hsts -> hsts
