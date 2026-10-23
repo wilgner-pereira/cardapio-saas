@@ -234,6 +234,16 @@ public class SecurityIntegrationTests {
     }
 
     @Test
+    void constraintViolationReturnsSanitizedErrorMessage() throws Exception {
+        mockMvc.perform(put("/painel/estabelecimento/logo")
+                        .param("logoUrl", "invalid-url")
+                        .cookie(userCookie)
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Dados inválidos"));
+    }
+
+    @Test
     void sameJwtUsesCurrentDatabaseRolesIncludingExplicitDualRole() throws Exception {
         Usuario user = usuarioRepository.findWithRolesAndEstabelecimentoByUsername(
                 tokenService.validateAccessToken(userCookie.getValue())).orElseThrow();
