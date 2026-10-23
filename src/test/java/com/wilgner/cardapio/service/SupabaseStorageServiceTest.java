@@ -51,6 +51,13 @@ public class SupabaseStorageServiceTest {
     }
 
     @Test
+    public void downloadFileRejectsInvalidAndOversizedObjectKeys() {
+        assertThrows(IllegalArgumentException.class, () -> service.downloadFile("a".repeat(101)));
+        assertThrows(IllegalArgumentException.class, () -> service.downloadFile("../private"));
+        assertThrows(IllegalArgumentException.class, () -> service.downloadFile("path/traversal"));
+    }
+
+    @Test
     public void testInvalidFile() {
         MockMultipartFile file = new MockMultipartFile("file", "test.txt", MediaType.TEXT_PLAIN_VALUE, "test".getBytes());
         Exception exception = assertThrows(IllegalArgumentException.class, () -> service.validateFile(file, ImageUploadProfile.PRODUCT));
