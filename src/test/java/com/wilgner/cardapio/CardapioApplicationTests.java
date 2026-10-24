@@ -107,6 +107,7 @@ class CardapioApplicationTests {
                         .contentType("application/json")
                         .content(loginPayload(username)))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(cookie().exists("access_token"))
                 .andExpect(cookie().exists("refresh_token"))
                 .andExpect(cookie().httpOnly("access_token", true))
@@ -130,6 +131,7 @@ class CardapioApplicationTests {
 
         mockMvc.perform(get("/auth/validate").cookie(loginCookies))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.accessToken").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.refreshToken").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.username").value(username))

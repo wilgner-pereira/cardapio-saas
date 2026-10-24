@@ -15,6 +15,7 @@ import com.wilgner.cardapio.security.RefreshSessionService;
 import com.wilgner.cardapio.security.SecurityAuditLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -77,6 +78,7 @@ public class AuthenticationController {
                             ? authenticatedUser.getEstabelecimento().getId() : null,
                     null);
             return ResponseEntity.ok()
+                    .cacheControl(CacheControl.noStore())
                     .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(accessToken, tokenService.getAccessTokenDuration()).toString())
                     .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(refreshToken, tokenService.getRefreshTokenDuration()).toString())
                     .body(toResponse("Autenticado", authenticatedUser, tokenService.getAccessTokenDuration().toMillis()));
@@ -106,6 +108,7 @@ public class AuthenticationController {
         String newRefreshToken = rotation.refreshToken();
 
         return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.accessToken(newAccessToken, tokenService.getAccessTokenDuration()).toString())
                 .header(HttpHeaders.SET_COOKIE, tokenCookieService.refreshToken(newRefreshToken, tokenService.getRefreshTokenDuration()).toString())
                 .body(toResponse("Token renovado", user, tokenService.getAccessTokenDuration().toMillis()));
@@ -126,7 +129,7 @@ public class AuthenticationController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Usuario user = findAuthenticatedUser(userDetails.getUsername());
-        return ResponseEntity.ok(toResponse("Token válido", user, 0));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(toResponse("Token válido", user, 0));
     }
 
     @GetMapping("/session")
