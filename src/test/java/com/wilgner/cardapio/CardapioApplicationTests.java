@@ -50,7 +50,8 @@ class CardapioApplicationTests {
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))
                 .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
-                .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=()"));
+                .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=()"))
+                .andExpect(header().string("X-Permitted-Cross-Domain-Policies", "none"));
     }
 
     @Test
